@@ -33,4 +33,22 @@ public class ConfigurationLoader
 
         return config;
     }
+
+    public async Task<DataTransferConfiguration> LoadAsync(string filePath, CancellationToken cancellationToken = default)
+    {
+        if (!File.Exists(filePath))
+        {
+            throw new FileNotFoundException($"Configuration file not found: {filePath}", filePath);
+        }
+
+        using var stream = File.OpenRead(filePath);
+        var config = await JsonSerializer.DeserializeAsync<DataTransferConfiguration>(stream, _jsonOptions, cancellationToken);
+
+        if (config == null)
+        {
+            throw new InvalidOperationException("Failed to deserialize configuration");
+        }
+
+        return config;
+    }
 }
