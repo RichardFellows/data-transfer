@@ -10,4 +10,8 @@
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\DataTransfer.Core\DataTransfer.Core.csproj" />
+  </ItemGroup>
+
 </Project>

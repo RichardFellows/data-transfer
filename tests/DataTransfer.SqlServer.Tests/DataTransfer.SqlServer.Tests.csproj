@@ -23,4 +23,9 @@
     </PackageReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DataTransfer.SqlServer\DataTransfer.SqlServer.csproj" />
+    <ProjectReference Include="..\..\src\DataTransfer.Core\DataTransfer.Core.csproj" />
+  </ItemGroup>
+
 </Project>
