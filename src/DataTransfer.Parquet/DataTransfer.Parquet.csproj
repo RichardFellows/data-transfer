@@ -10,4 +10,8 @@
     <PackageReference Include="Parquet.Net" Version="5.2.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\DataTransfer.Core\DataTransfer.Core.csproj" />
+  </ItemGroup>
+
 </Project>

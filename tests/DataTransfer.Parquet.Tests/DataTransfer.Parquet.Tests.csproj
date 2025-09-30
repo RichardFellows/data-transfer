@@ -23,4 +23,9 @@
     </PackageReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DataTransfer.Parquet\DataTransfer.Parquet.csproj" />
+    <ProjectReference Include="..\..\src\DataTransfer.Core\DataTransfer.Core.csproj" />
+  </ItemGroup>
+
 </Project>
