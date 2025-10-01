@@ -5,6 +5,7 @@ using DataTransfer.Pipeline;
 using DataTransfer.SqlServer;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
+using Respawn;
 using Serilog;
 using Testcontainers.MsSql;
 using Xunit;
@@ -13,10 +14,14 @@ namespace DataTransfer.Integration.Tests;
 
 public class EndToEndTests : IAsyncLifetime
 {
-    private MsSqlContainer? _sqlContainer;
-    private string _connectionString = string.Empty;
+    private static MsSqlContainer? _sqlContainer;
+    private static string _connectionString = string.Empty;
+    private static bool _containerInitialized = false;
+    private static readonly SemaphoreSlim _initLock = new(1, 1);
     private readonly string _testOutputPath = Path.Combine(Path.GetTempPath(), "datatransfer-integration-tests", Guid.NewGuid().ToString());
     private ILogger<DataTransferOrchestrator>? _logger;
+    private Respawner? _sourceRespawner;
+    private Respawner? _destRespawner;
 
     public async Task InitializeAsync()
     {
@@ -32,28 +37,79 @@ public class EndToEndTests : IAsyncLifetime
         });
         _logger = loggerFactory.CreateLogger<DataTransferOrchestrator>();
 
-        // Start SQL Server container
-        _sqlContainer = new MsSqlBuilder()
-            .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
-            .WithPassword("YourStrong@Passw0rd")
-            .Build();
+        // Initialize shared container once for all tests
+        await _initLock.WaitAsync();
+        try
+        {
+            if (!_containerInitialized)
+            {
+                // Start SQL Server container (shared across all tests)
+                _sqlContainer = new MsSqlBuilder()
+                    .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+                    .WithPassword("YourStrong@Passw0rd")
+                    .Build();
 
-        await _sqlContainer.StartAsync();
-        _connectionString = _sqlContainer.GetConnectionString();
+                await _sqlContainer.StartAsync();
+                _connectionString = _sqlContainer.GetConnectionString();
 
-        // Create test databases
-        await CreateDatabaseAsync("SourceDB");
-        await CreateDatabaseAsync("DestDB");
+                // Create test databases once
+                await CreateDatabaseAsync("SourceDB");
+                await CreateDatabaseAsync("DestDB");
 
-        // Create output directory
+                _containerInitialized = true;
+            }
+        }
+        finally
+        {
+            _initLock.Release();
+        }
+
+        // Create output directory for this test
         Directory.CreateDirectory(_testOutputPath);
     }
 
     public async Task DisposeAsync()
     {
-        if (_sqlContainer != null)
+        // Reset databases after each test to ensure clean state
+        // Create Respawn checkpoints on-demand (after tables are created by tests)
+        try
         {
-            await _sqlContainer.DisposeAsync();
+            await using var sourceConn = new SqlConnection(GetDatabaseConnectionString("SourceDB"));
+            await sourceConn.OpenAsync();
+
+            if (_sourceRespawner == null)
+            {
+                _sourceRespawner = await Respawner.CreateAsync(sourceConn, new RespawnerOptions
+                {
+                    DbAdapter = DbAdapter.SqlServer,
+                    TablesToIgnore = Array.Empty<Respawn.Graph.Table>()
+                });
+            }
+            await _sourceRespawner.ResetAsync(sourceConn);
+        }
+        catch (InvalidOperationException)
+        {
+            // No tables to reset - this is OK for first test
+        }
+
+        try
+        {
+            await using var destConn = new SqlConnection(GetDatabaseConnectionString("DestDB"));
+            await destConn.OpenAsync();
+
+            if (_destRespawner == null)
+            {
+                _destRespawner = await Respawner.CreateAsync(destConn, new RespawnerOptions
+                {
+                    DbAdapter = DbAdapter.SqlServer,
+                    TablesToIgnore = Array.Empty<Respawn.Graph.Table>()
+                });
+            }
+            await _destRespawner.ResetAsync(destConn);
+        }
+        catch (InvalidOperationException)
+        {
+            // No tables to reset - this is OK for first test
         }
 
         // Clean up test output directory
@@ -61,11 +117,9 @@ public class EndToEndTests : IAsyncLifetime
         {
             Directory.Delete(_testOutputPath, recursive: true);
         }
-
-        Log.CloseAndFlush();
     }
 
-    private async Task CreateDatabaseAsync(string databaseName)
+    private static async Task CreateDatabaseAsync(string databaseName)
     {
         using var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync();
@@ -73,7 +127,7 @@ public class EndToEndTests : IAsyncLifetime
         await command.ExecuteNonQueryAsync();
     }
 
-    private string GetDatabaseConnectionString(string databaseName)
+    private static string GetDatabaseConnectionString(string databaseName)
     {
         var builder = new SqlConnectionStringBuilder(_connectionString)
         {
