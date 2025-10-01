@@ -1,51 +1,38 @@
 # Quick Start Guide for New LLM Context
 
 ## Current State
-- **107 tests passing** across 5 layers
+- **111 tests passing** across 6 test projects
 - Core, Configuration, SqlServer, Parquet, Pipeline layers: ✅ COMPLETE
 - Console application: ✅ COMPLETE
-- Integration tests: 🔨 TODO (immediate priority)
+- Integration tests: ✅ COMPLETE (5 E2E tests with Testcontainers + Respawn)
+- Docker deployment: 🔨 TODO (next priority)
 
-## Immediate Task: Integration Tests
+## Project Status: ~80% Complete
+
+All core functionality implemented and tested. Remaining work:
+- Update Docker deployment configuration
+- Enhance README.md documentation
+- Optional: Performance benchmarks
+
+## Next Task: Docker Deployment
 
 ### What to do RIGHT NOW:
 
 1. **Read these files first (in order):**
-   - `IMPLEMENTATION_STATUS.md` - Overall project status and integration test spec
-   - `ARCHITECTURE.md` - Technical architecture
+   - `IMPLEMENTATION_STATUS.md` - Current project status
+   - `docker/Dockerfile` - Existing Docker configuration (needs .NET 8 update)
 
-2. **Add Testcontainers.MsSql package:**
+2. **Update Dockerfile for .NET 8:**
+   - Use .NET 8 SDK and runtime
+   - Multi-stage build with UBI8 runtime
+   - Configure volumes for config, parquet output, logs
+
+3. **Test Docker build:**
    ```bash
-   cd tests/DataTransfer.Integration.Tests
-   dotnet add package Testcontainers.MsSql
+   docker build -f docker/Dockerfile -t datatransfer:latest .
    ```
 
-3. **Implement integration tests:**
-   - Create end-to-end tests using SQL Server containers
-   - Test all 4 partition strategies (Date, IntDate, Scd2, Static)
-   - Verify full Extract → Parquet → Load pipeline
-   - Ensure data integrity after transfer
-
-4. **Test:**
-   ```bash
-   dotnet test tests/DataTransfer.Integration.Tests
-   ```
-
-5. **Commit:**
-   ```bash
-   git add tests/DataTransfer.Integration.Tests/
-   git commit -m "test(integration): add end-to-end tests with Testcontainers [GREEN]
-
-   Added integration tests using SQL Server containers:
-   - Test full Extract → Parquet → Load pipeline
-   - Cover all 4 partition strategies
-   - Verify data integrity after transfer
-   - X integration tests passing
-
-   🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-   Co-Authored-By: Claude <noreply@anthropic.com>"
-   ```
+4. **Commit following TDD format from CLAUDE.md**
 
 ## Quick Commands Reference
 
@@ -130,22 +117,22 @@ var transferResult = await orchestrator.TransferTableAsync(
 3. Types: feat, fix, refactor, test, docs
 4. Phases: [RED], [GREEN], [REFACTOR], or combined [GREEN+REFACTOR]
 
-## Success Criteria for Integration Tests
+## Integration Tests Summary
 
-✅ Testcontainers.MsSql package added
-✅ SQL Server container spins up successfully
-✅ Tests create source tables with sample data
-✅ Full pipeline executes (Extract → Parquet → Load)
-✅ Data integrity verified in destination
-✅ All 4 partition types tested
-✅ All tests passing (107 + new integration tests)
+✅ 5 E2E tests covering all partition strategies (Date, IntDate, Scd2, Static, Empty)
+✅ Optimized with shared container + Respawn (57% faster: ~19s vs ~42s)
+✅ Full Extract → Parquet → Load pipeline validated
+✅ Data integrity verified with real SQL Server containers
+✅ 111 total tests passing
 
-## After Integration Tests are Done
+## Remaining Tasks
 
-Next tasks:
-- Update Docker deployment for .NET 8
-- Update README.md with comprehensive usage docs
-- Optional: Add performance benchmarks
+1. **Docker Deployment** - Update Dockerfile for .NET 8
+2. **README Documentation** - Comprehensive usage guide
+3. **Optional Enhancements:**
+   - Performance benchmarks with BenchmarkDotNet
+   - Additional partition strategies
+   - Cloud storage backends (Azure Blob, S3)
 
 ## Context Files
 
@@ -160,11 +147,12 @@ All context is preserved in these files:
 
 - DO NOT create unnecessary files
 - ALWAYS prefer editing existing files
-- Follow TDD strictly
-- Commit after each phase
+- Follow TDD strictly (RED → GREEN → REFACTOR)
+- Commit after each phase with proper tags
 - Use provided commit format exactly
-- All dependencies already configured in other projects
-- 107 tests passing - don't break them!
+- All dependencies already configured
+- **111 tests passing** - don't break them!
+- Integration tests run in ~19 seconds
 
 ## Need Help?
 
