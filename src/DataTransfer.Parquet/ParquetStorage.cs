@@ -94,6 +94,17 @@ public class ParquetStorage : IParquetStorage
 
         cancellationToken.ThrowIfCancellationRequested();
 
+        // Check if file is empty (created for 0 rows)
+        var fileInfo = new FileInfo(fullFilePath);
+        if (fileInfo.Length == 0)
+        {
+            // Return empty JSON array
+            var emptyMemoryStream = new MemoryStream();
+            await JsonSerializer.SerializeAsync(emptyMemoryStream, new List<Dictionary<string, object?>>(), cancellationToken: cancellationToken);
+            emptyMemoryStream.Position = 0;
+            return emptyMemoryStream;
+        }
+
         // Read Parquet file
         await using var fileStream = File.OpenRead(fullFilePath);
         using var parquetReader = await ParquetReader.CreateAsync(fileStream, cancellationToken: cancellationToken);
@@ -115,16 +126,19 @@ public class ParquetStorage : IParquetStorage
             }
 
             // Convert to JSON objects
-            var rowCount = columnData.Values.First().Length;
-            for (int rowIndex = 0; rowIndex < rowCount; rowIndex++)
+            if (columnData.Values.Any())
             {
-                var row = new Dictionary<string, object?>();
-                foreach (var field in dataFields)
+                var rowCount = columnData.Values.First().Length;
+                for (int rowIndex = 0; rowIndex < rowCount; rowIndex++)
                 {
-                    var value = columnData[field.Name].GetValue(rowIndex);
-                    row[field.Name] = value;
+                    var row = new Dictionary<string, object?>();
+                    foreach (var field in dataFields)
+                    {
+                        var value = columnData[field.Name].GetValue(rowIndex);
+                        row[field.Name] = value;
+                    }
+                    jsonArray.Add(row);
                 }
-                jsonArray.Add(row);
             }
         }
 

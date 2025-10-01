@@ -52,7 +52,7 @@ public class SqlTableExtractor : ITableExtractor
                 CommandTimeout = 300 // 5 minutes
             };
 
-            await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, cancellationToken);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
             long rowCount = 0;
             await using var writer = new StreamWriter(outputStream, leaveOpen: true);
