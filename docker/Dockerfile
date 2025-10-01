@@ -2,8 +2,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy solution and project files
-COPY DataTransfer.sln ./
+# Copy project files
 COPY src/DataTransfer.Core/DataTransfer.Core.csproj src/DataTransfer.Core/
 COPY src/DataTransfer.Configuration/DataTransfer.Configuration.csproj src/DataTransfer.Configuration/
 COPY src/DataTransfer.SqlServer/DataTransfer.SqlServer.csproj src/DataTransfer.SqlServer/
@@ -11,8 +10,8 @@ COPY src/DataTransfer.Parquet/DataTransfer.Parquet.csproj src/DataTransfer.Parqu
 COPY src/DataTransfer.Pipeline/DataTransfer.Pipeline.csproj src/DataTransfer.Pipeline/
 COPY src/DataTransfer.Console/DataTransfer.Console.csproj src/DataTransfer.Console/
 
-# Restore dependencies
-RUN dotnet restore
+# Restore dependencies for Console project (includes all dependencies)
+RUN dotnet restore src/DataTransfer.Console/DataTransfer.Console.csproj
 
 # Copy source code
 COPY src/ src/
