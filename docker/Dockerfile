@@ -1,5 +1,5 @@
 # Build stage
-FROM registry.access.redhat.com/ubi8/dotnet-80:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
 # Copy solution and project files
@@ -21,7 +21,7 @@ COPY src/ src/
 RUN dotnet publish src/DataTransfer.Console/DataTransfer.Console.csproj -c Release -o /app/publish
 
 # Runtime stage
-FROM registry.access.redhat.com/ubi8/dotnet-80-runtime:8.0 AS runtime
+FROM mcr.microsoft.com/dotnet/runtime:8.0 AS runtime
 WORKDIR /app
 
 # Create non-root user
@@ -30,8 +30,11 @@ RUN useradd -m -u 1001 datatransfer
 # Copy published application
 COPY --from=build /app/publish .
 
-# Create data directory
-RUN mkdir -p /data/extracts && chown -R datatransfer:datatransfer /data /app
+# Create directories for volumes
+RUN mkdir -p /config /parquet-output /logs && chown -R datatransfer:datatransfer /config /parquet-output /logs /app
+
+# Define volumes
+VOLUME ["/config", "/parquet-output", "/logs"]
 
 # Switch to non-root user
 USER datatransfer
