@@ -2,7 +2,7 @@
 
 **Date:** 2025-10-01
 **Project:** DataTransfer - SQL Server to Parquet data transfer solution
-**Current State:** Core layers complete, Console app complete, Integration tests complete (~80% overall)
+**Current State:** Core layers complete, Console app complete, Integration tests complete, Docker complete (~85% overall)
 
 ## What's Been Completed ✅
 
@@ -55,64 +55,41 @@
 - **Bug fixes:** Fixed CommandBehavior.SequentialAccess and empty Parquet file handling
 - **Location:** `tests/DataTransfer.Integration.Tests/`
 
-### 8. Git Commits
+### 8. Docker Deployment (Complete)
+- **Dockerfile:** Multi-stage build with .NET 8 SDK and runtime
+- **Base images:** Microsoft .NET 8 (mcr.microsoft.com)
+- **Size:** 365MB optimized image
+- **Volumes:** /config, /parquet-output, /logs
+- **Security:** Non-root user (datatransfer:1001)
+- **Health check:** Validates DataTransfer.Console.dll exists
+- **Location:** `docker/Dockerfile`
+
+### 9. Git Commits
 All completed work has been committed following TDD methodology with [RED], [GREEN], [REFACTOR] tags.
 
 Last commits:
+- `713b902 fix(docker): restore only Console project to exclude tests [REFACTOR]`
+- `a8fac72 feat(docker): update Dockerfile for .NET 8 [GREEN]`
 - `e0201ab perf(integration): optimize tests with shared container and Respawn [REFACTOR]`
-- `b5f4b6b test(integration): add end-to-end tests with Testcontainers [GREEN]`
-- `065eeda feat(console): add CLI application with DI and orchestration [GREEN]`
 
 ## What Remains To Be Done 🔨
 
-### NEXT: Docker Deployment (Priority 1)
+### NEXT: README.md Updates (Priority 1)
+**File exists:** `README.md` (needs comprehensive update)
 
-**File exists:** `docker/Dockerfile` (needs .NET 8 update)
-
-Update to use .NET 8 SDK and runtime:
-```dockerfile
-FROM registry.access.redhat.com/ubi8/dotnet-80-runtime AS runtime
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-
-WORKDIR /src
-COPY ["src/DataTransfer.Console/DataTransfer.Console.csproj", "src/DataTransfer.Console/"]
-COPY ["src/DataTransfer.Pipeline/DataTransfer.Pipeline.csproj", "src/DataTransfer.Pipeline/"]
-COPY ["src/DataTransfer.Core/DataTransfer.Core.csproj", "src/DataTransfer.Core/"]
-COPY ["src/DataTransfer.Configuration/DataTransfer.Configuration.csproj", "src/DataTransfer.Configuration/"]
-COPY ["src/DataTransfer.SqlServer/DataTransfer.SqlServer.csproj", "src/DataTransfer.SqlServer/"]
-COPY ["src/DataTransfer.Parquet/DataTransfer.Parquet.csproj", "src/DataTransfer.Parquet/"]
-
-RUN dotnet restore "src/DataTransfer.Console/DataTransfer.Console.csproj"
-
-COPY . .
-WORKDIR "/src/src/DataTransfer.Console"
-RUN dotnet build "DataTransfer.Console.csproj" -c Release -o /app/build
-RUN dotnet publish "DataTransfer.Console.csproj" -c Release -o /app/publish
-
-FROM runtime AS final
-WORKDIR /app
-COPY --from=build /app/publish .
-
-VOLUME ["/config", "/parquet-output", "/logs"]
-
-ENTRYPOINT ["dotnet", "DataTransfer.Console.dll"]
-```
-
-Build and test:
-```bash
-docker build -f docker/Dockerfile -t datatransfer:latest .
-docker run -v $(pwd)/config:/config -v $(pwd)/output:/parquet-output datatransfer:latest
-```
-
-#### 2. README.md Updates
 Update main README with:
-- Build instructions
-- Running the console app
-- Configuration examples
-- Docker usage
-- Test coverage badge
+- Project overview and key features
+- Prerequisites (.NET 8, SQL Server)
+- Installation instructions
+- Configuration guide with JSON examples
+- Usage instructions (local execution and Docker)
+- Build, test, and run commands
+- Architecture overview diagram/description
+- Docker usage examples with volume mounts
+- Troubleshooting section
+- Contributing guidelines
 
-#### 3. Performance Benchmarks
+#### 2. Performance Benchmarks (Optional)
 Create `tests/DataTransfer.Benchmarks/` using BenchmarkDotNet:
 - Measure extraction speed
 - Parquet write/read performance
@@ -140,7 +117,7 @@ DataTransfer/
 ├── config/
 │   └── appsettings.json             ✅ EXISTS
 ├── docker/
-│   └── Dockerfile                   📝 EXISTS (needs update)
+│   └── Dockerfile                   ✅ DONE
 ├── CLAUDE.md                        ✅ DONE
 ├── requirements.md                  ✅ DONE
 └── IMPLEMENTATION_STATUS.md         📝 THIS FILE
@@ -217,14 +194,36 @@ Last commits:
 - `b5f4b6b test(integration): add end-to-end tests with Testcontainers [GREEN]`
 - `065eeda feat(console): add CLI application with DI and orchestration [GREEN]`
 
+## Docker Usage
+
+**Build image:**
+```bash
+docker build -f docker/Dockerfile -t datatransfer:latest .
+```
+
+**Run container:**
+```bash
+docker run \
+  -v $(pwd)/config:/config \
+  -v $(pwd)/output:/parquet-output \
+  -v $(pwd)/logs:/logs \
+  datatransfer:latest
+```
+
+**Image details:**
+- Size: 365MB
+- Base: mcr.microsoft.com/dotnet/runtime:8.0
+- User: datatransfer (non-root, UID 1001)
+- Volumes: /config, /parquet-output, /logs
+
 ## Success Criteria
 
 The project is COMPLETE when:
 1. ✅ All core layers implemented with tests (111 tests passing)
 2. ✅ Console application runs and processes configuration
 3. ✅ Integration tests verify end-to-end functionality (5 E2E tests)
-4. 🔨 Docker container builds and runs
+4. ✅ Docker container builds and runs (365MB image)
 5. 🔨 README is comprehensive
 6. 🔨 80%+ test coverage achieved
 
-**Current Progress: ~80% complete**
+**Current Progress: ~85% complete**

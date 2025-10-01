@@ -5,34 +5,33 @@
 - Core, Configuration, SqlServer, Parquet, Pipeline layers: ✅ COMPLETE
 - Console application: ✅ COMPLETE
 - Integration tests: ✅ COMPLETE (5 E2E tests with Testcontainers + Respawn)
-- Docker deployment: 🔨 TODO (next priority)
+- Docker deployment: ✅ COMPLETE (365MB image with volume support)
 
-## Project Status: ~80% Complete
+## Project Status: ~85% Complete
 
 All core functionality implemented and tested. Remaining work:
-- Update Docker deployment configuration
 - Enhance README.md documentation
 - Optional: Performance benchmarks
 
-## Next Task: Docker Deployment
+## Next Task: README.md Documentation
 
 ### What to do RIGHT NOW:
 
 1. **Read these files first (in order):**
    - `IMPLEMENTATION_STATUS.md` - Current project status
-   - `docker/Dockerfile` - Existing Docker configuration (needs .NET 8 update)
+   - `README.md` - Existing README (needs comprehensive update)
+   - `ARCHITECTURE.md` - Technical details to reference
 
-2. **Update Dockerfile for .NET 8:**
-   - Use .NET 8 SDK and runtime
-   - Multi-stage build with UBI8 runtime
-   - Configure volumes for config, parquet output, logs
+2. **Update README.md with:**
+   - Project overview and features
+   - Prerequisites and installation
+   - Configuration guide with examples
+   - Usage instructions (local and Docker)
+   - Build and test commands
+   - Architecture overview
+   - Docker usage examples
 
-3. **Test Docker build:**
-   ```bash
-   docker build -f docker/Dockerfile -t datatransfer:latest .
-   ```
-
-4. **Commit following TDD format from CLAUDE.md**
+3. **Commit following format from CLAUDE.md**
 
 ## Quick Commands Reference
 
@@ -127,9 +126,8 @@ var transferResult = await orchestrator.TransferTableAsync(
 
 ## Remaining Tasks
 
-1. **Docker Deployment** - Update Dockerfile for .NET 8
-2. **README Documentation** - Comprehensive usage guide
-3. **Optional Enhancements:**
+1. **README Documentation** - Comprehensive usage guide (NEXT)
+2. **Optional Enhancements:**
    - Performance benchmarks with BenchmarkDotNet
    - Additional partition strategies
    - Cloud storage backends (Azure Blob, S3)
