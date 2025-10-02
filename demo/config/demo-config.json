@@ -1,0 +1,98 @@
+{
+  "Connections": {
+    "Source": "Server=localhost,1433;Database=SalesSource;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=true",
+    "Destination": "Server=localhost,1433;Database=SalesDestination;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=true"
+  },
+  "Storage": {
+    "BasePath": "./demo/output/parquet"
+  },
+  "Tables": [
+    {
+      "Source": {
+        "Database": "SalesSource",
+        "Schema": "dbo",
+        "Table": "Orders"
+      },
+      "Destination": {
+        "Database": "SalesDestination",
+        "Schema": "dbo",
+        "Table": "Orders"
+      },
+      "Partitioning": {
+        "Type": "Date",
+        "Column": "OrderDate"
+      },
+      "ExtractSettings": {
+        "DateRange": {
+          "StartDate": "2024-10-01",
+          "EndDate": "2024-12-31"
+        },
+        "BatchSize": 1000
+      }
+    },
+    {
+      "Source": {
+        "Database": "SalesSource",
+        "Schema": "dbo",
+        "Table": "SalesTransactions"
+      },
+      "Destination": {
+        "Database": "SalesDestination",
+        "Schema": "dbo",
+        "Table": "SalesTransactions"
+      },
+      "Partitioning": {
+        "Type": "IntDate",
+        "Column": "SaleDate"
+      },
+      "ExtractSettings": {
+        "DateRange": {
+          "StartDate": "2024-10-01",
+          "EndDate": "2024-12-31"
+        },
+        "BatchSize": 1000
+      }
+    },
+    {
+      "Source": {
+        "Database": "SalesSource",
+        "Schema": "dbo",
+        "Table": "Products"
+      },
+      "Destination": {
+        "Database": "SalesDestination",
+        "Schema": "dbo",
+        "Table": "Products"
+      },
+      "Partitioning": {
+        "Type": "Static"
+      },
+      "ExtractSettings": {
+        "BatchSize": 1000
+      }
+    },
+    {
+      "Source": {
+        "Database": "SalesSource",
+        "Schema": "dbo",
+        "Table": "CustomerDimension"
+      },
+      "Destination": {
+        "Database": "SalesDestination",
+        "Schema": "dbo",
+        "Table": "CustomerDimension"
+      },
+      "Partitioning": {
+        "Type": "Scd2",
+        "Column": "EffectiveDate"
+      },
+      "ExtractSettings": {
+        "DateRange": {
+          "StartDate": "2024-01-01",
+          "EndDate": "2024-12-31"
+        },
+        "BatchSize": 1000
+      }
+    }
+  ]
+}

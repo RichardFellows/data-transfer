@@ -45,9 +45,20 @@ try
     var orchestrator = host.Services.GetRequiredService<DataTransferOrchestrator>();
     var logger = host.Services.GetRequiredService<ILogger<Program>>();
 
+    // Parse command-line arguments
+    string configPath = "config/appsettings.json";
+    for (int i = 0; i < args.Length; i++)
+    {
+        if (args[i] == "--config" && i + 1 < args.Length)
+        {
+            configPath = args[i + 1];
+            break;
+        }
+    }
+
     // Load configuration
-    logger.LogInformation("Loading configuration from config/appsettings.json");
-    var config = await configLoader.LoadAsync("config/appsettings.json");
+    logger.LogInformation("Loading configuration from {ConfigPath}", configPath);
+    var config = await configLoader.LoadAsync(configPath);
 
     // Validate configuration
     var validationResult = validator.Validate(config);
