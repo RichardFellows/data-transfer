@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using BenchmarkDotNet.Attributes;
 using DataTransfer.Core.Models;
 using DataTransfer.Parquet;
@@ -6,44 +5,35 @@ using DataTransfer.Pipeline;
 using DataTransfer.SqlServer;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
+using Testcontainers.MsSql;
 
 namespace DataTransfer.Benchmarks;
 
 [MemoryDiagnoser]
 public class EndToEndBenchmarks
 {
-    private const string ConnectionString = "Server=(localdb)\\mssqllocaldb;Integrated Security=true;TrustServerCertificate=true;";
-    private string _dbConnectionString = null!;
+    private MsSqlContainer? _sqlContainer;
+    private string _connectionString = null!;
     private string _parquetPath = null!;
     private TableConfiguration? _tableConfig;
 
     [GlobalSetup]
     public async Task Setup()
     {
-        // Check platform - LocalDB only works on Windows
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            throw new PlatformNotSupportedException("EndToEndBenchmarks requires Windows with LocalDB. Run QueryBuildingBenchmarks instead on Linux/macOS.");
-        }
+        // Start SQL Server container
+        _sqlContainer = new MsSqlBuilder()
+            .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+            .WithPassword("YourStrong@Passw0rd")
+            .Build();
 
-        // Create benchmark database
-        await using var connection = new SqlConnection(ConnectionString);
-        await connection.OpenAsync();
+        await _sqlContainer.StartAsync();
+        _connectionString = _sqlContainer.GetConnectionString();
 
-        await using (var cmd = new SqlCommand(@"
-            IF EXISTS (SELECT name FROM sys.databases WHERE name = 'BenchmarkDB')
-                DROP DATABASE BenchmarkDB;
-            CREATE DATABASE BenchmarkDB;", connection))
-        {
-            await cmd.ExecuteNonQueryAsync();
-        }
-
-        _dbConnectionString = ConnectionString + "Database=BenchmarkDB;";
         _parquetPath = Path.Combine(Path.GetTempPath(), "benchmark_parquet", Guid.NewGuid().ToString());
         Directory.CreateDirectory(_parquetPath);
 
         // Create and populate test table
-        await using var dbConnection = new SqlConnection(_dbConnectionString);
+        await using var dbConnection = new SqlConnection(_connectionString);
         await dbConnection.OpenAsync();
 
         await using (var cmd = new SqlCommand(@"
@@ -87,8 +77,8 @@ public class EndToEndBenchmarks
 
         _tableConfig = new TableConfiguration
         {
-            Source = new TableIdentifier { Database = "BenchmarkDB", Schema = "dbo", Table = "TestData" },
-            Destination = new TableIdentifier { Database = "BenchmarkDB", Schema = "dbo", Table = "TestDataDest" },
+            Source = new TableIdentifier { Database = "master", Schema = "dbo", Table = "TestData" },
+            Destination = new TableIdentifier { Database = "master", Schema = "dbo", Table = "TestDataDest" },
             Partitioning = new PartitioningConfiguration { Type = PartitionType.Static },
             ExtractSettings = new ExtractSettings
             {
@@ -105,7 +95,7 @@ public class EndToEndBenchmarks
     public void IterationSetup()
     {
         // Truncate destination table before each iteration
-        using var connection = new SqlConnection(_dbConnectionString);
+        using var connection = new SqlConnection(_connectionString);
         connection.Open();
         using var cmd = new SqlCommand("TRUNCATE TABLE dbo.TestDataDest", connection);
         cmd.ExecuteNonQuery();
@@ -129,7 +119,7 @@ public class EndToEndBenchmarks
         var loader = new SqlDataLoader(queryBuilder);
         var orchestrator = new DataTransferOrchestrator(extractor, storage, loader, NullLogger<DataTransferOrchestrator>.Instance);
 
-        await orchestrator.TransferTableAsync(_tableConfig!, _dbConnectionString, _dbConnectionString);
+        await orchestrator.TransferTableAsync(_tableConfig!, _connectionString, _connectionString);
     }
 
     [GlobalCleanup]
@@ -141,15 +131,11 @@ public class EndToEndBenchmarks
             Directory.Delete(_parquetPath, true);
         }
 
-        // Drop database
-        await using var connection = new SqlConnection(ConnectionString);
-        await connection.OpenAsync();
-        await using var cmd = new SqlCommand(@"
-            IF EXISTS (SELECT name FROM sys.databases WHERE name = 'BenchmarkDB')
-            BEGIN
-                ALTER DATABASE BenchmarkDB SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-                DROP DATABASE BenchmarkDB;
-            END", connection);
-        await cmd.ExecuteNonQueryAsync();
+        // Stop and dispose SQL Server container
+        if (_sqlContainer != null)
+        {
+            await _sqlContainer.StopAsync();
+            await _sqlContainer.DisposeAsync();
+        }
     }
 }
