@@ -72,7 +72,7 @@ public class ParquetExtractor : IParquetExtractor
 
             // Read Parquet file
             await using var fileStream = File.OpenRead(fullPath);
-            using var parquetReader = await ParquetReader.CreateAsync(fileStream, cancellationToken: cancellationToken);
+            using var parquetReader = await global::Parquet.ParquetReader.CreateAsync(fileStream, cancellationToken: cancellationToken);
 
             var jsonRows = new List<Dictionary<string, object?>>();
 

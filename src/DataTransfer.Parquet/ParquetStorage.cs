@@ -68,7 +68,7 @@ public class ParquetStorage : IParquetStorage
 
         // Write to Parquet file with compression
         await using var fileStream = File.Create(fullFilePath);
-        await using var parquetWriter = await ParquetWriter.CreateAsync(schema, fileStream, cancellationToken: cancellationToken);
+        await using var parquetWriter = await global::Parquet.ParquetWriter.CreateAsync(schema, fileStream, cancellationToken: cancellationToken);
         parquetWriter.CompressionMethod = CompressionMethod.Snappy;
 
         using var rowGroup = parquetWriter.CreateRowGroup();
@@ -107,7 +107,7 @@ public class ParquetStorage : IParquetStorage
 
         // Read Parquet file
         await using var fileStream = File.OpenRead(fullFilePath);
-        using var parquetReader = await ParquetReader.CreateAsync(fileStream, cancellationToken: cancellationToken);
+        using var parquetReader = await global::Parquet.ParquetReader.CreateAsync(fileStream, cancellationToken: cancellationToken);
 
         // Read all row groups
         var jsonArray = new List<Dictionary<string, object?>>();
