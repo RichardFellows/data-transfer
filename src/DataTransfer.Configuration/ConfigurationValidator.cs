@@ -106,4 +106,128 @@ public class ConfigurationValidator
             result.AddError("Storage BasePath is required");
         }
     }
+
+    /// <summary>
+    /// Validates a TransferConfiguration for bi-directional transfers
+    /// </summary>
+    public ValidationResult ValidateTransfer(TransferConfiguration config)
+    {
+        var result = new ValidationResult();
+
+        switch (config.TransferType)
+        {
+            case TransferType.SqlToParquet:
+                ValidateSqlToParquetTransfer(config, result);
+                break;
+
+            case TransferType.ParquetToSql:
+                ValidateParquetToSqlTransfer(config, result);
+                break;
+
+            case TransferType.SqlToSql:
+                ValidateSqlToSqlTransfer(config, result);
+                break;
+
+            default:
+                result.AddError($"Transfer type {config.TransferType} is not supported");
+                break;
+        }
+
+        return result;
+    }
+
+    private void ValidateSqlToParquetTransfer(TransferConfiguration config, ValidationResult result)
+    {
+        // Validate source is SQL Server
+        if (config.Source.Type != SourceType.SqlServer)
+        {
+            result.AddError("Source must be SqlServer for SqlToParquet transfer");
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Source.ConnectionString))
+        {
+            result.AddError("Source connection string is required");
+        }
+
+        if (config.Source.Table == null)
+        {
+            result.AddError("Source table is required");
+        }
+
+        // Validate destination is Parquet
+        if (config.Destination.Type != DestinationType.Parquet)
+        {
+            result.AddError("Destination must be Parquet for SqlToParquet transfer");
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Destination.ParquetPath))
+        {
+            result.AddError("Destination Parquet path is required");
+        }
+    }
+
+    private void ValidateParquetToSqlTransfer(TransferConfiguration config, ValidationResult result)
+    {
+        // Validate source is Parquet
+        if (config.Source.Type != SourceType.Parquet)
+        {
+            result.AddError("Source must be Parquet for ParquetToSql transfer");
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Source.ParquetPath))
+        {
+            result.AddError("Source Parquet path is required");
+        }
+
+        // Validate destination is SQL Server
+        if (config.Destination.Type != DestinationType.SqlServer)
+        {
+            result.AddError("Destination must be SqlServer for ParquetToSql transfer");
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Destination.ConnectionString))
+        {
+            result.AddError("Destination connection string is required");
+        }
+
+        if (config.Destination.Table == null)
+        {
+            result.AddError("Destination table is required");
+        }
+    }
+
+    private void ValidateSqlToSqlTransfer(TransferConfiguration config, ValidationResult result)
+    {
+        // Validate source is SQL Server
+        if (config.Source.Type != SourceType.SqlServer)
+        {
+            result.AddError("Source must be SqlServer for SqlToSql transfer");
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Source.ConnectionString))
+        {
+            result.AddError("Source connection string is required");
+        }
+
+        if (config.Source.Table == null)
+        {
+            result.AddError("Source table is required");
+        }
+
+        // Validate destination is SQL Server
+        if (config.Destination.Type != DestinationType.SqlServer)
+        {
+            result.AddError("Destination must be SqlServer for SqlToSql transfer");
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Destination.ConnectionString))
+        {
+            result.AddError("Destination connection string is required");
+        }
+
+        if (config.Destination.Table == null)
+        {
+            result.AddError("Destination table is required");
+        }
+    }
 }
