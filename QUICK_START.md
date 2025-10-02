@@ -7,28 +7,29 @@
 - Integration tests: ✅ COMPLETE (5 E2E tests with Testcontainers + Respawn)
 - Docker deployment: ✅ COMPLETE (365MB image with volume support)
 - README.md documentation: ✅ COMPLETE (comprehensive documentation)
+- Performance benchmarks: ✅ COMPLETE (BenchmarkDotNet with 2 benchmark suites)
 
-## Project Status: ~90% Complete
+## Project Status: ~95% Complete
 
-All core functionality implemented, tested, and documented. Remaining work (optional):
-- Performance benchmarks with BenchmarkDotNet
-- Measure actual code coverage percentage
+All core functionality implemented, tested, documented, and benchmarked. Remaining work (optional):
+- Measure actual code coverage percentage and generate reports
 
 ## Optional Enhancements
 
-### 1. Performance Benchmarks (Next recommended task)
-
-Create `tests/DataTransfer.Benchmarks/` using BenchmarkDotNet to measure:
-- Extraction speed (rows/second)
-- Parquet write/read performance
-- Loading performance (SqlBulkCopy throughput)
-- Memory usage with large datasets
-
-### 2. Code Coverage Measurement
+### 1. Code Coverage Measurement (Recommended next task)
 
 Run coverage analysis to verify 80%+ target:
 ```bash
-dotnet test /p:CollectCoverage=true /p:CoverageMinimum=80
+dotnet test /p:CollectCoverage=true /p:CoverageMinimum=80 /p:CoverletOutputFormat=opencover
+dotnet tool install -g dotnet-reportgenerator-globaltool
+reportgenerator -reports:coverage.opencover.xml -targetdir:coverage-report
+```
+
+### 2. Run Performance Benchmarks
+
+Execute the completed benchmarks to measure actual performance:
+```bash
+dotnet run -c Release --project tests/DataTransfer.Benchmarks
 ```
 
 ### 3. Future Features (for consideration)
@@ -137,9 +138,9 @@ var transferResult = await orchestrator.TransferTableAsync(
 - Integration tests (5 E2E tests with real SQL Server)
 - Docker deployment (365MB optimized image)
 - **README.md** - Comprehensive documentation
+- **Performance benchmarks** - BenchmarkDotNet suite (QueryBuilding + EndToEnd)
 
 ### 🔨 Optional Enhancements
-- Performance benchmarks with BenchmarkDotNet
 - Code coverage measurement and reporting
 - Additional partition strategies
 - Cloud storage backends (Azure Blob, S3)
