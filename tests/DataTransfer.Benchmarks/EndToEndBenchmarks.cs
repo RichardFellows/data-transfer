@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using BenchmarkDotNet.Attributes;
 using DataTransfer.Core.Models;
 using DataTransfer.Parquet;
@@ -19,6 +20,12 @@ public class EndToEndBenchmarks
     [GlobalSetup]
     public async Task Setup()
     {
+        // Check platform - LocalDB only works on Windows
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            throw new PlatformNotSupportedException("EndToEndBenchmarks requires Windows with LocalDB. Run QueryBuildingBenchmarks instead on Linux/macOS.");
+        }
+
         // Create benchmark database
         await using var connection = new SqlConnection(ConnectionString);
         await connection.OpenAsync();
@@ -95,13 +102,13 @@ public class EndToEndBenchmarks
     }
 
     [IterationSetup]
-    public async Task IterationSetup()
+    public void IterationSetup()
     {
         // Truncate destination table before each iteration
-        await using var connection = new SqlConnection(_dbConnectionString);
-        await connection.OpenAsync();
-        await using var cmd = new SqlCommand("TRUNCATE TABLE dbo.TestDataDest", connection);
-        await cmd.ExecuteNonQueryAsync();
+        using var connection = new SqlConnection(_dbConnectionString);
+        connection.Open();
+        using var cmd = new SqlCommand("TRUNCATE TABLE dbo.TestDataDest", connection);
+        cmd.ExecuteNonQuery();
 
         // Clean parquet directory
         if (Directory.Exists(_parquetPath))
