@@ -33,6 +33,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataTransfer.Configuration.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataTransfer.Benchmarks", "tests\DataTransfer.Benchmarks\DataTransfer.Benchmarks.csproj", "{2406C69F-B923-4C79-94FC-58F75EBA5344}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataTransfer.Web.Tests", "tests\DataTransfer.Web.Tests\DataTransfer.Web.Tests.csproj", "{582F8BD7-3E17-4FFF-A5E4-30500CB112E2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -94,6 +96,10 @@ Global
 		{2406C69F-B923-4C79-94FC-58F75EBA5344}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2406C69F-B923-4C79-94FC-58F75EBA5344}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2406C69F-B923-4C79-94FC-58F75EBA5344}.Release|Any CPU.Build.0 = Release|Any CPU
+		{582F8BD7-3E17-4FFF-A5E4-30500CB112E2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{582F8BD7-3E17-4FFF-A5E4-30500CB112E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{582F8BD7-3E17-4FFF-A5E4-30500CB112E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{582F8BD7-3E17-4FFF-A5E4-30500CB112E2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{DE656F1F-8042-4835-8D56-A784846E64D3} = {F0D29BD3-AFDB-4665-BE0C-D61F8BCC3CB6}
@@ -109,5 +115,6 @@ Global
 		{6341E126-7EA5-44F8-9DA5-74F7F2698E38} = {EAF0DFA8-E37B-43E2-A620-223C8482C740}
 		{57F78785-22D9-4397-BF5E-DF041A8490F5} = {EAF0DFA8-E37B-43E2-A620-223C8482C740}
 		{2406C69F-B923-4C79-94FC-58F75EBA5344} = {EAF0DFA8-E37B-43E2-A620-223C8482C740}
+		{582F8BD7-3E17-4FFF-A5E4-30500CB112E2} = {EAF0DFA8-E37B-43E2-A620-223C8482C740}
 	EndGlobalSection
 EndGlobal
