@@ -33,14 +33,14 @@
                         <div class="mb-3">
                             <label class="form-label">Connection Preset</label>
                             <div class="input-group">
-                                <select id="connectionPreset" @bind="_selectedPreset" @bind:after="OnPresetChanged" class="form-select">
+                                <select id="connectionPreset" @bind="_selectedPreset" @bind:after="OnPresetChanged" class="form-select" title="Select a saved connection or choose Custom">
                                     <option value="">Custom</option>
                                     @foreach (var preset in _connectionPresets)
                                     {
                                         <option value="@preset.Name">@preset.Name</option>
                                     }
                                 </select>
-                                <button type="button" class="btn btn-outline-secondary" @onclick="TestSourceConnection" disabled="@_isTestingConnection">
+                                <button type="button" class="btn btn-outline-secondary" @onclick="TestSourceConnection" disabled="@_isTestingConnection" title="Verify connection to SQL Server">
                                     @if (_isTestingConnection)
                                     {
                                         <span class="spinner-border spinner-border-sm"></span>
@@ -50,6 +50,9 @@
                                         <span>Test Connection</span>
                                     }
                                 </button>
+                            </div>
+                            <div class="form-text text-muted">
+                                <small>Select a preset connection or enter a custom connection string below</small>
                             </div>
                             @if (!string.IsNullOrEmpty(_connectionTestMessage))
                             {
@@ -75,7 +78,10 @@
                         {
                             <div class="mb-3">
                                 <label class="form-label">Connection String</label>
-                                <input @bind="_sourceConnectionString" class="form-control" placeholder="Server=localhost;Database=MyDb;Integrated Security=true;" />
+                                <input @bind="_sourceConnectionString" class="form-control" placeholder="Server=localhost;Database=MyDb;Integrated Security=true;" title="Enter SQL Server connection string" />
+                                <div class="form-text text-muted">
+                                    <small>Example: Server=localhost;Database=MyDb;User Id=sa;Password=***;TrustServerCertificate=true</small>
+                                </div>
                             </div>
                         }
 
@@ -84,7 +90,7 @@
                             <div class="row">
                                 <div class="col-md-4">
                                     <label class="form-label">Database</label>
-                                    <select id="database" @bind="_sourceDatabase" @bind:after="OnDatabaseChanged" class="form-select" disabled="@_isLoadingDatabases">
+                                    <select id="database" @bind="_sourceDatabase" @bind:after="OnDatabaseChanged" class="form-select" disabled="@_isLoadingDatabases" title="Select target database">
                                         <option value="">-- Select Database --</option>
                                         @foreach (var db in _availableDatabases)
                                         {
@@ -93,12 +99,16 @@
                                     </select>
                                     @if (_isLoadingDatabases)
                                     {
-                                        <div class="form-text"><span class="spinner-border spinner-border-sm"></span> Loading...</div>
+                                        <div class="form-text"><span class="spinner-border spinner-border-sm"></span> Loading databases...</div>
+                                    }
+                                    else if (_availableDatabases.Any())
+                                    {
+                                        <div class="form-text text-muted"><small>@_availableDatabases.Count database(s) available</small></div>
                                     }
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Schema</label>
-                                    <select id="schema" @bind="_sourceSchema" @bind:after="OnSchemaChanged" class="form-select" disabled="@(string.IsNullOrEmpty(_sourceDatabase) || _isLoadingSchemas)">
+                                    <select id="schema" @bind="_sourceSchema" @bind:after="OnSchemaChanged" class="form-select" disabled="@(string.IsNullOrEmpty(_sourceDatabase) || _isLoadingSchemas)" title="Select schema (usually 'dbo')">
                                         <option value="">-- Select Schema --</option>
                                         @foreach (var schema in _availableSchemas)
                                         {
@@ -107,13 +117,17 @@
                                     </select>
                                     @if (_isLoadingSchemas)
                                     {
-                                        <div class="form-text"><span class="spinner-border spinner-border-sm"></span> Loading...</div>
+                                        <div class="form-text"><span class="spinner-border spinner-border-sm"></span> Loading schemas...</div>
+                                    }
+                                    else if (_availableSchemas.Any())
+                                    {
+                                        <div class="form-text text-muted"><small>@_availableSchemas.Count schema(s) available</small></div>
                                     }
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Table</label>
-                                    <input id="tableSearch" type="text" @bind="_tableSearchText" @bind:event="oninput" class="form-control form-control-sm mb-1" placeholder="Search tables..." style="@(_availableTables.Any() ? "" : "display: none;")" />
-                                    <select id="table" @bind="_sourceTable" class="form-select" disabled="@(string.IsNullOrEmpty(_sourceSchema) || _isLoadingTables)">
+                                    <input id="tableSearch" type="text" @bind="_tableSearchText" @bind:event="oninput" class="form-control form-control-sm mb-1" placeholder="Search tables..." style="@(_availableTables.Any() ? "" : "display: none;")" title="Filter tables by name" />
+                                    <select id="table" @bind="_sourceTable" class="form-select" disabled="@(string.IsNullOrEmpty(_sourceSchema) || _isLoadingTables)" title="Select table or view to transfer">
                                         <option value="">-- Select Table --</option>
                                         @foreach (var table in FilteredTables)
                                         {
@@ -122,11 +136,15 @@
                                     </select>
                                     @if (_isLoadingTables)
                                     {
-                                        <div class="form-text"><span class="spinner-border spinner-border-sm"></span> Loading...</div>
+                                        <div class="form-text"><span class="spinner-border spinner-border-sm"></span> Loading tables...</div>
                                     }
                                     else if (_availableTables.Any() && !FilteredTables.Any())
                                     {
                                         <div class="form-text text-muted">No tables match "@_tableSearchText"</div>
+                                    }
+                                    else if (_availableTables.Any())
+                                    {
+                                        <div class="form-text text-muted"><small>@FilteredTables.Count() of @_availableTables.Count table(s)</small></div>
                                     }
                                 </div>
                             </div>

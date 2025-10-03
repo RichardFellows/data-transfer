@@ -7,15 +7,51 @@ namespace DataTransfer.Web.Services;
 
 /// <summary>
 /// Service for querying SQL Server metadata (databases, schemas, tables)
+/// Includes 5-minute caching to improve performance
 /// </summary>
 public class DatabaseMetadataService
 {
     private readonly ILogger<DatabaseMetadataService> _logger;
     private const int ConnectionTimeoutSeconds = 5;
+    private const int CacheExpirationMinutes = 5;
+
+    // Cache storage: Key = "{connectionString}|{database}|{schema}", Value = (Data, ExpiresAt)
+    private readonly Dictionary<string, (object Data, DateTime ExpiresAt)> _cache = new();
+    private readonly object _cacheLock = new();
 
     public DatabaseMetadataService(ILogger<DatabaseMetadataService> logger)
     {
         _logger = logger;
+    }
+
+    private T? GetFromCache<T>(string key) where T : class
+    {
+        lock (_cacheLock)
+        {
+            if (_cache.TryGetValue(key, out var cached) && cached.ExpiresAt > DateTime.UtcNow)
+            {
+                _logger.LogDebug("Cache hit for key: {Key}", key);
+                return cached.Data as T;
+            }
+
+            if (_cache.ContainsKey(key))
+            {
+                _logger.LogDebug("Cache expired for key: {Key}", key);
+                _cache.Remove(key);
+            }
+
+            return null;
+        }
+    }
+
+    private void SaveToCache<T>(string key, T data) where T : class
+    {
+        lock (_cacheLock)
+        {
+            var expiresAt = DateTime.UtcNow.AddMinutes(CacheExpirationMinutes);
+            _cache[key] = (data, expiresAt);
+            _logger.LogDebug("Cached data for key: {Key}, expires at: {ExpiresAt}", key, expiresAt);
+        }
     }
 
     /// <summary>
@@ -43,9 +79,17 @@ public class DatabaseMetadataService
 
     /// <summary>
     /// Gets list of databases from SQL Server (excludes system databases)
+    /// Results are cached for 5 minutes
     /// </summary>
     public async Task<List<string>> GetDatabasesAsync(string connectionString)
     {
+        var cacheKey = $"databases|{connectionString}";
+        var cached = GetFromCache<List<string>>(cacheKey);
+        if (cached != null)
+        {
+            return cached;
+        }
+
         var databases = new List<string>();
 
         await using var connection = new SqlConnection(connectionString);
@@ -60,14 +104,23 @@ public class DatabaseMetadataService
             databases.Add(reader.GetString(0));
         }
 
+        SaveToCache(cacheKey, databases);
         return databases;
     }
 
     /// <summary>
     /// Gets list of schemas in a specific database
+    /// Results are cached for 5 minutes
     /// </summary>
     public async Task<List<string>> GetSchemasAsync(string connectionString, string database)
     {
+        var cacheKey = $"schemas|{connectionString}|{database}";
+        var cached = GetFromCache<List<string>>(cacheKey);
+        if (cached != null)
+        {
+            return cached;
+        }
+
         var schemas = new List<string>();
 
         await using var connection = new SqlConnection(connectionString);
@@ -88,14 +141,23 @@ public class DatabaseMetadataService
             schemas.Add(reader.GetString(0));
         }
 
+        SaveToCache(cacheKey, schemas);
         return schemas;
     }
 
     /// <summary>
     /// Gets list of tables in a specific database and schema
+    /// Results are cached for 5 minutes
     /// </summary>
     public async Task<List<TableInfo>> GetTablesAsync(string connectionString, string database, string schema)
     {
+        var cacheKey = $"tables|{connectionString}|{database}|{schema}";
+        var cached = GetFromCache<List<TableInfo>>(cacheKey);
+        if (cached != null)
+        {
+            return cached;
+        }
+
         var tables = new List<TableInfo>();
 
         await using var connection = new SqlConnection(connectionString);
@@ -121,6 +183,7 @@ public class DatabaseMetadataService
             });
         }
 
+        SaveToCache(cacheKey, tables);
         return tables;
     }
 }
