@@ -202,23 +202,107 @@
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
-                            <label class="form-label">Connection String</label>
-                            <input @bind="_destConnectionString" class="form-control" placeholder="Server=localhost;Database=MyDb;Integrated Security=true;" />
+                            <label class="form-label">Connection Preset</label>
+                            <div class="input-group">
+                                <select id="destConnectionPreset" @bind="_destSelectedPreset" @bind:after="OnDestPresetChanged" class="form-select" title="Select a saved connection or choose Custom">
+                                    <option value="">Custom</option>
+                                    @foreach (var preset in _connectionPresets)
+                                    {
+                                        <option value="@preset.Name">@preset.Name</option>
+                                    }
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="TestDestConnection" disabled="@_isTestingDestConnection" title="Verify connection to SQL Server">
+                                    @if (_isTestingDestConnection)
+                                    {
+                                        <span class="spinner-border spinner-border-sm"></span>
+                                    }
+                                    else
+                                    {
+                                        <span>Test Connection</span>
+                                    }
+                                </button>
+                            </div>
+                            <div class="form-text text-muted">
+                                <small>Select a preset connection or enter a custom connection string below</small>
+                            </div>
+                            @if (!string.IsNullOrEmpty(_destConnectionTestMessage))
+                            {
+                                <div class="form-text @(_destConnectionTestSuccess ? "text-success" : "text-danger")">
+                                    @_destConnectionTestMessage
+                                </div>
+                            }
                         </div>
-                        <div class="row">
-                            <div class="col-md-4">
-                                <label class="form-label">Database</label>
-                                <input @bind="_destDatabase" class="form-control" placeholder="MyDatabase" />
+
+                        @if (string.IsNullOrEmpty(_destSelectedPreset))
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Connection String</label>
+                                <input @bind="_destConnectionString" class="form-control" placeholder="Server=localhost;Database=MyDb;Integrated Security=true;" title="Enter SQL Server connection string" />
+                                <div class="form-text text-muted">
+                                    <small>Example: Server=localhost;Database=MyDb;User Id=sa;Password=***;TrustServerCertificate=true</small>
+                                </div>
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Schema</label>
-                                <input @bind="_destSchema" class="form-control" placeholder="dbo" />
+                        }
+
+                        @if (_destConnectionTestSuccess && _destAvailableDatabases.Any())
+                        {
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <label class="form-label">Database</label>
+                                    <select id="destDatabase" @bind="_destDatabase" @bind:after="OnDestDatabaseChanged" class="form-select" disabled="@_isLoadingDestDatabases" title="Select target database">
+                                        <option value="">-- Select Database --</option>
+                                        @foreach (var db in _destAvailableDatabases)
+                                        {
+                                            <option value="@db">@db</option>
+                                        }
+                                    </select>
+                                    @if (_isLoadingDestDatabases)
+                                    {
+                                        <div class="form-text"><span class="spinner-border spinner-border-sm"></span> Loading databases...</div>
+                                    }
+                                    else if (_destAvailableDatabases.Any())
+                                    {
+                                        <div class="form-text text-muted"><small>@_destAvailableDatabases.Count database(s) available</small></div>
+                                    }
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Schema</label>
+                                    <select id="destSchema" @bind="_destSchema" @bind:after="OnDestSchemaChanged" class="form-select" disabled="@(string.IsNullOrEmpty(_destDatabase) || _isLoadingDestSchemas)" title="Select schema (usually 'dbo')">
+                                        <option value="">-- Select Schema --</option>
+                                        @foreach (var schema in _destAvailableSchemas)
+                                        {
+                                            <option value="@schema">@schema</option>
+                                        }
+                                    </select>
+                                    @if (_isLoadingDestSchemas)
+                                    {
+                                        <div class="form-text"><span class="spinner-border spinner-border-sm"></span> Loading schemas...</div>
+                                    }
+                                    else if (_destAvailableSchemas.Any())
+                                    {
+                                        <div class="form-text text-muted"><small>@_destAvailableSchemas.Count schema(s) available</small></div>
+                                    }
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Table</label>
+                                    <select id="destTable" @bind="_destTable" class="form-select" disabled="@(string.IsNullOrEmpty(_destSchema) || _isLoadingDestTables)" title="Select target table">
+                                        <option value="">-- Select Table --</option>
+                                        @foreach (var table in _destAvailableTables)
+                                        {
+                                            <option value="@table.Name">@table.FullName</option>
+                                        }
+                                    </select>
+                                    @if (_isLoadingDestTables)
+                                    {
+                                        <div class="form-text"><span class="spinner-border spinner-border-sm"></span> Loading tables...</div>
+                                    }
+                                    else if (_destAvailableTables.Any())
+                                    {
+                                        <div class="form-text text-muted"><small>@_destAvailableTables.Count table(s) available</small></div>
+                                    }
+                                </div>
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Table</label>
-                                <input @bind="_destTable" class="form-control" placeholder="MyTable" />
-                            </div>
-                        </div>
+                        }
                     </div>
                 </div>
             }
@@ -322,6 +406,18 @@
 
     // Parquet file selection
     private List<ParquetFileInfo> _availableParquetFiles = new();
+
+    // Destination cascading dropdown state
+    private string _destSelectedPreset = "";
+    private bool _isTestingDestConnection;
+    private bool _destConnectionTestSuccess;
+    private string? _destConnectionTestMessage;
+    private List<string> _destAvailableDatabases = new();
+    private List<string> _destAvailableSchemas = new();
+    private List<TableInfo> _destAvailableTables = new();
+    private bool _isLoadingDestDatabases;
+    private bool _isLoadingDestSchemas;
+    private bool _isLoadingDestTables;
 
     protected override void OnInitialized()
     {
@@ -541,6 +637,151 @@
         finally
         {
             _isLoadingTables = false;
+        }
+    }
+
+    // Destination dropdown methods
+    private async Task OnDestPresetChanged()
+    {
+        _destConnectionTestMessage = null;
+        _destConnectionTestSuccess = false;
+        _destAvailableDatabases.Clear();
+        _destAvailableSchemas.Clear();
+        _destAvailableTables.Clear();
+        _destDatabase = "";
+        _destSchema = "";
+        _destTable = "";
+
+        if (!string.IsNullOrEmpty(_destSelectedPreset))
+        {
+            var preset = _connectionPresets.FirstOrDefault(p => p.Name == _destSelectedPreset);
+            if (preset != null)
+            {
+                _destConnectionString = preset.ConnectionString;
+                await LoadDestDatabasesAsync();
+            }
+        }
+    }
+
+    private async Task TestDestConnection()
+    {
+        _isTestingDestConnection = true;
+        _destConnectionTestMessage = null;
+        _destConnectionTestSuccess = false;
+
+        try
+        {
+            var connectionString = string.IsNullOrEmpty(_destSelectedPreset)
+                ? _destConnectionString
+                : _connectionPresets.FirstOrDefault(p => p.Name == _destSelectedPreset)?.ConnectionString ?? "";
+
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                _destConnectionTestMessage = "Please enter a connection string";
+                return;
+            }
+
+            _destConnectionTestSuccess = MetadataService.TestConnection(connectionString);
+            _destConnectionTestMessage = _destConnectionTestSuccess
+                ? "✓ Connection successful"
+                : "✗ Connection failed";
+
+            if (_destConnectionTestSuccess)
+            {
+                _destConnectionString = connectionString;
+                await LoadDestDatabasesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _destConnectionTestSuccess = false;
+            _destConnectionTestMessage = $"✗ Error: {ex.Message}";
+        }
+        finally
+        {
+            _isTestingDestConnection = false;
+        }
+    }
+
+    private async Task LoadDestDatabasesAsync()
+    {
+        _isLoadingDestDatabases = true;
+        _destAvailableDatabases.Clear();
+        _destDatabase = "";
+        _destSchema = "";
+        _destTable = "";
+
+        try
+        {
+            var databases = await MetadataService.GetDatabasesAsync(_destConnectionString);
+            var defaultDatabases = Configuration.GetSection("DefaultDatabases").Get<List<string>>() ?? new();
+            _destAvailableDatabases = databases.Union(defaultDatabases).Distinct().OrderBy(d => d).ToList();
+        }
+        catch (Exception ex)
+        {
+            _destConnectionTestMessage = $"✗ Error loading databases: {ex.Message}";
+            _destConnectionTestSuccess = false;
+        }
+        finally
+        {
+            _isLoadingDestDatabases = false;
+        }
+    }
+
+    private async Task OnDestDatabaseChanged()
+    {
+        _destAvailableSchemas.Clear();
+        _destAvailableTables.Clear();
+        _destSchema = "";
+        _destTable = "";
+
+        if (string.IsNullOrEmpty(_destDatabase))
+            return;
+
+        _isLoadingDestSchemas = true;
+
+        try
+        {
+            _destAvailableSchemas = await MetadataService.GetSchemasAsync(_destConnectionString, _destDatabase);
+
+            // Pre-select "dbo" if available
+            if (_destAvailableSchemas.Contains("dbo"))
+            {
+                _destSchema = "dbo";
+                await OnDestSchemaChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            _destConnectionTestMessage = $"✗ Error loading schemas: {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingDestSchemas = false;
+        }
+    }
+
+    private async Task OnDestSchemaChanged()
+    {
+        _destAvailableTables.Clear();
+        _destTable = "";
+
+        if (string.IsNullOrEmpty(_destSchema))
+            return;
+
+        _isLoadingDestTables = true;
+
+        try
+        {
+            _destAvailableTables = await MetadataService.GetTablesAsync(_destConnectionString, _destDatabase, _destSchema);
+        }
+        catch (Exception ex)
+        {
+            _destConnectionTestMessage = $"✗ Error loading tables: {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingDestTables = false;
         }
     }
 
