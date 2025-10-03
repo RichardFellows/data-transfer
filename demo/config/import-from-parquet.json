@@ -1,0 +1,16 @@
+{
+  "TransferType": "ParquetToSql",
+  "Source": {
+    "Type": "Parquet",
+    "ParquetPath": "orders_export.parquet"
+  },
+  "Destination": {
+    "Type": "SqlServer",
+    "ConnectionString": "Server=localhost,1433;Database=SalesDestination;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=true",
+    "Table": {
+      "Database": "SalesDestination",
+      "Schema": "dbo",
+      "Table": "ImportedOrders"
+    }
+  }
+}

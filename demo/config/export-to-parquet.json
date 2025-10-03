@@ -1,0 +1,21 @@
+{
+  "TransferType": "SqlToParquet",
+  "Source": {
+    "Type": "SqlServer",
+    "ConnectionString": "Server=localhost,1433;Database=SalesSource;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=true",
+    "Table": {
+      "Database": "SalesSource",
+      "Schema": "dbo",
+      "Table": "Orders"
+    }
+  },
+  "Destination": {
+    "Type": "Parquet",
+    "ParquetPath": "orders_export.parquet",
+    "Compression": "Snappy"
+  },
+  "Partitioning": {
+    "Type": "Date",
+    "Column": "OrderDate"
+  }
+}
