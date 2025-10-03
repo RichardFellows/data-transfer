@@ -1,8 +1,11 @@
 @page "/transfer/new"
 @using DataTransfer.Core.Models
 @using DataTransfer.Web.Services
+@using DataTransfer.Web.Models
 @inject TransferExecutionService ExecutionService
+@inject DatabaseMetadataService MetadataService
 @inject NavigationManager Navigation
+@inject IConfiguration Configuration
 @rendermode InteractiveServer
 
 <PageTitle>New Transfer</PageTitle>
@@ -28,23 +31,89 @@
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
-                            <label class="form-label">Connection String</label>
-                            <input @bind="_sourceConnectionString" class="form-control" placeholder="Server=localhost;Database=MyDb;Integrated Security=true;" />
+                            <label class="form-label">Connection Preset</label>
+                            <div class="input-group">
+                                <select id="connectionPreset" @bind="_selectedPreset" @bind:after="OnPresetChanged" class="form-select">
+                                    <option value="">Custom</option>
+                                    @foreach (var preset in _connectionPresets)
+                                    {
+                                        <option value="@preset.Name">@preset.Name</option>
+                                    }
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="TestSourceConnection" disabled="@_isTestingConnection">
+                                    @if (_isTestingConnection)
+                                    {
+                                        <span class="spinner-border spinner-border-sm"></span>
+                                    }
+                                    else
+                                    {
+                                        <span>Test Connection</span>
+                                    }
+                                </button>
+                            </div>
+                            @if (!string.IsNullOrEmpty(_connectionTestMessage))
+                            {
+                                <div class="form-text @(_connectionTestSuccess ? "text-success" : "text-danger")">
+                                    @_connectionTestMessage
+                                </div>
+                            }
                         </div>
-                        <div class="row">
-                            <div class="col-md-4">
-                                <label class="form-label">Database</label>
-                                <input @bind="_sourceDatabase" class="form-control" placeholder="MyDatabase" />
+
+                        @if (_selectedPreset == "")
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Connection String</label>
+                                <input @bind="_sourceConnectionString" class="form-control" placeholder="Server=localhost;Database=MyDb;Integrated Security=true;" />
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Schema</label>
-                                <input @bind="_sourceSchema" class="form-control" placeholder="dbo" />
+                        }
+
+                        @if (_connectionTestSuccess || !string.IsNullOrEmpty(_selectedPreset))
+                        {
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <label class="form-label">Database</label>
+                                    <select id="database" @bind="_sourceDatabase" @bind:after="OnDatabaseChanged" class="form-select" disabled="@_isLoadingDatabases">
+                                        <option value="">-- Select Database --</option>
+                                        @foreach (var db in _availableDatabases)
+                                        {
+                                            <option value="@db">@db</option>
+                                        }
+                                    </select>
+                                    @if (_isLoadingDatabases)
+                                    {
+                                        <div class="form-text"><span class="spinner-border spinner-border-sm"></span> Loading...</div>
+                                    }
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Schema</label>
+                                    <select id="schema" @bind="_sourceSchema" @bind:after="OnSchemaChanged" class="form-select" disabled="@(string.IsNullOrEmpty(_sourceDatabase) || _isLoadingSchemas)">
+                                        <option value="">-- Select Schema --</option>
+                                        @foreach (var schema in _availableSchemas)
+                                        {
+                                            <option value="@schema">@schema</option>
+                                        }
+                                    </select>
+                                    @if (_isLoadingSchemas)
+                                    {
+                                        <div class="form-text"><span class="spinner-border spinner-border-sm"></span> Loading...</div>
+                                    }
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Table</label>
+                                    <select id="table" @bind="_sourceTable" class="form-select" disabled="@(string.IsNullOrEmpty(_sourceSchema) || _isLoadingTables)">
+                                        <option value="">-- Select Table --</option>
+                                        @foreach (var table in _availableTables)
+                                        {
+                                            <option value="@table.Name">@table.FullName</option>
+                                        }
+                                    </select>
+                                    @if (_isLoadingTables)
+                                    {
+                                        <div class="form-text"><span class="spinner-border spinner-border-sm"></span> Loading...</div>
+                                    }
+                                </div>
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Table</label>
-                                <input @bind="_sourceTable" class="form-control" placeholder="MyTable" />
-                            </div>
-                        </div>
+                        }
                     </div>
                 </div>
             }
@@ -157,7 +226,7 @@
     // Source fields
     private string _sourceConnectionString = "";
     private string _sourceDatabase = "";
-    private string _sourceSchema = "dbo";
+    private string _sourceSchema = "";
     private string _sourceTable = "";
     private string _sourceParquetPath = "";
 
@@ -168,9 +237,199 @@
     private string _destTable = "";
     private string _destParquetPath = "";
 
+    // Connection preset and metadata fields
+    private List<ConnectionPreset> _connectionPresets = new();
+    private string _selectedPreset = "";
+    private bool _isTestingConnection;
+    private bool _connectionTestSuccess;
+    private string? _connectionTestMessage;
+
+    // Cascading dropdown state
+    private List<string> _availableDatabases = new();
+    private List<string> _availableSchemas = new();
+    private List<TableInfo> _availableTables = new();
+    private bool _isLoadingDatabases;
+    private bool _isLoadingSchemas;
+    private bool _isLoadingTables;
+
+    protected override void OnInitialized()
+    {
+        // Load connection presets from configuration
+        var connectionStrings = Configuration.GetSection("ConnectionStrings");
+        foreach (var item in connectionStrings.GetChildren())
+        {
+            _connectionPresets.Add(new ConnectionPreset
+            {
+                Name = item.Key,
+                ConnectionString = item.Value ?? ""
+            });
+        }
+    }
+
     private void OnTransferTypeChanged(ChangeEventArgs e)
     {
         _resultMessage = null;
+        ResetSourceFields();
+    }
+
+    private void ResetSourceFields()
+    {
+        _selectedPreset = "";
+        _sourceConnectionString = "";
+        _sourceDatabase = "";
+        _sourceSchema = "";
+        _sourceTable = "";
+        _connectionTestSuccess = false;
+        _connectionTestMessage = null;
+        _availableDatabases.Clear();
+        _availableSchemas.Clear();
+        _availableTables.Clear();
+    }
+
+    private async Task OnPresetChanged()
+    {
+        _connectionTestMessage = null;
+        _connectionTestSuccess = false;
+        _availableDatabases.Clear();
+        _availableSchemas.Clear();
+        _availableTables.Clear();
+        _sourceDatabase = "";
+        _sourceSchema = "";
+        _sourceTable = "";
+
+        if (!string.IsNullOrEmpty(_selectedPreset))
+        {
+            var preset = _connectionPresets.FirstOrDefault(p => p.Name == _selectedPreset);
+            if (preset != null)
+            {
+                _sourceConnectionString = preset.ConnectionString;
+                await LoadDatabasesAsync();
+            }
+        }
+    }
+
+    private async Task TestSourceConnection()
+    {
+        _isTestingConnection = true;
+        _connectionTestMessage = null;
+        _connectionTestSuccess = false;
+
+        try
+        {
+            var connectionString = string.IsNullOrEmpty(_selectedPreset)
+                ? _sourceConnectionString
+                : _connectionPresets.FirstOrDefault(p => p.Name == _selectedPreset)?.ConnectionString ?? "";
+
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                _connectionTestMessage = "Please enter a connection string";
+                return;
+            }
+
+            _connectionTestSuccess = MetadataService.TestConnection(connectionString);
+            _connectionTestMessage = _connectionTestSuccess
+                ? "✓ Connection successful"
+                : "✗ Connection failed";
+
+            if (_connectionTestSuccess)
+            {
+                _sourceConnectionString = connectionString;
+                await LoadDatabasesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _connectionTestSuccess = false;
+            _connectionTestMessage = $"✗ Error: {ex.Message}";
+        }
+        finally
+        {
+            _isTestingConnection = false;
+        }
+    }
+
+    private async Task LoadDatabasesAsync()
+    {
+        _isLoadingDatabases = true;
+        _availableDatabases.Clear();
+        _sourceDatabase = "";
+        _sourceSchema = "";
+        _sourceTable = "";
+
+        try
+        {
+            var databases = await MetadataService.GetDatabasesAsync(_sourceConnectionString);
+
+            // Add default databases if configured
+            var defaultDatabases = Configuration.GetSection("DefaultDatabases").Get<List<string>>() ?? new();
+            _availableDatabases = databases.Union(defaultDatabases).Distinct().OrderBy(d => d).ToList();
+        }
+        catch (Exception ex)
+        {
+            _connectionTestMessage = $"✗ Error loading databases: {ex.Message}";
+            _connectionTestSuccess = false;
+        }
+        finally
+        {
+            _isLoadingDatabases = false;
+        }
+    }
+
+    private async Task OnDatabaseChanged()
+    {
+        _availableSchemas.Clear();
+        _availableTables.Clear();
+        _sourceSchema = "";
+        _sourceTable = "";
+
+        if (string.IsNullOrEmpty(_sourceDatabase))
+            return;
+
+        _isLoadingSchemas = true;
+
+        try
+        {
+            _availableSchemas = await MetadataService.GetSchemasAsync(_sourceConnectionString, _sourceDatabase);
+
+            // Pre-select "dbo" if available
+            if (_availableSchemas.Contains("dbo"))
+            {
+                _sourceSchema = "dbo";
+                await OnSchemaChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            _connectionTestMessage = $"✗ Error loading schemas: {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingSchemas = false;
+        }
+    }
+
+    private async Task OnSchemaChanged()
+    {
+        _availableTables.Clear();
+        _sourceTable = "";
+
+        if (string.IsNullOrEmpty(_sourceSchema))
+            return;
+
+        _isLoadingTables = true;
+
+        try
+        {
+            _availableTables = await MetadataService.GetTablesAsync(_sourceConnectionString, _sourceDatabase, _sourceSchema);
+        }
+        catch (Exception ex)
+        {
+            _connectionTestMessage = $"✗ Error loading tables: {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingTables = false;
+        }
     }
 
     private async Task HandleSubmit()
