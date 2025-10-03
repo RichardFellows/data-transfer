@@ -589,7 +589,13 @@
             else
             {
                 _config.Destination.Type = DestinationType.Parquet;
-                _config.Destination.ParquetPath = _destParquetPath;
+                // Ensure .parquet extension
+                var parquetPath = _destParquetPath;
+                if (!string.IsNullOrEmpty(parquetPath) && !parquetPath.EndsWith(".parquet", StringComparison.OrdinalIgnoreCase))
+                {
+                    parquetPath += ".parquet";
+                }
+                _config.Destination.ParquetPath = parquetPath;
             }
 
             var result = await ExecutionService.ExecuteAsync(_config, _currentTransferId);

@@ -32,9 +32,30 @@ public class ParquetFileService
                 return files;
             }
 
-            var parquetFiles = Directory.GetFiles(_parquetDirectory, "*.parquet", SearchOption.AllDirectories);
+            // Get all files - both with .parquet extension and without (for backwards compatibility)
+            var allFiles = Directory.GetFiles(_parquetDirectory, "*", SearchOption.AllDirectories)
+                .Where(f =>
+                {
+                    var fileName = Path.GetFileName(f);
+                    var extension = Path.GetExtension(f).ToLowerInvariant();
 
-            foreach (var file in parquetFiles)
+                    // Include:
+                    // 1. Files with .parquet extension
+                    // 2. Files without any extension (backwards compatibility - e.g., "orders", "customer")
+                    // 3. Exclude common non-parquet file types
+                    if (extension == ".parquet")
+                        return true;
+
+                    if (string.IsNullOrEmpty(extension))
+                        return true; // No extension - might be parquet
+
+                    // Exclude known non-parquet extensions
+                    var excludedExtensions = new[] { ".txt", ".csv", ".json", ".xml", ".log", ".md" };
+                    return !excludedExtensions.Contains(extension);
+                })
+                .Where(f => !Path.GetFileName(f).StartsWith(".")); // Exclude hidden files
+
+            foreach (var file in allFiles)
             {
                 var fileInfo = new FileInfo(file);
                 var relativePath = Path.GetRelativePath(_parquetDirectory, file);
