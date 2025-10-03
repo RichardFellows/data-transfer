@@ -123,4 +123,4 @@ echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 # Run the web UI
-dotnet run --project src/DataTransfer.Web --configuration Release
+dotnet run --project src/DataTransfer.Web --configuration Release --urls http://localhost:5000
