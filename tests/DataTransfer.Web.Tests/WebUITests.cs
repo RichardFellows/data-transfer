@@ -214,8 +214,9 @@ public class WebUITests : IAsyncLifetime
             if (hasError)
             {
                 var errorText = await alertDanger.First.TextContentAsync();
-                // We expect to see "NotImplementedException" or similar
-                Assert.Contains("NotImplemented", errorText, StringComparison.OrdinalIgnoreCase);
+                // We expect to see error about SQL→SQL not being implemented in UnifiedTransferOrchestrator
+                Assert.Contains("SQL→SQL", errorText);
+                Assert.Contains("DataTransferOrchestrator", errorText);
             }
         }
         finally
@@ -302,7 +303,7 @@ public class WebUITests : IAsyncLifetime
             await Assertions.Expect(page).ToHaveURLAsync($"{BaseUrl}/transfer/new");
 
             // Act & Assert - Navigate to History
-            var historyNavLink = page.Locator("nav a[href='/history']");
+            var historyNavLink = page.Locator("nav a[href='history']");
             await historyNavLink.ClickAsync();
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
             await Assertions.Expect(page).ToHaveURLAsync($"{BaseUrl}/history");
