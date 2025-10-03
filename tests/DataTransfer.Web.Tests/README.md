@@ -45,9 +45,10 @@ The test suite verifies:
 
 ### ✅ New Transfer Page
 - Form loads with transfer type selector
+- Only shows supported transfer types (SQL→Parquet, Parquet→SQL)
 - SQL→Parquet: Shows correct source/destination fields
 - Parquet→SQL: Shows correct source/destination fields
-- SQL→SQL: Documents current error behavior (NotImplementedException)
+- SQL→SQL: Option removed (requires different orchestrator)
 
 ### ✅ History Page
 - Page loads with table or "no transfers" message
@@ -58,13 +59,13 @@ The test suite verifies:
 - Can navigate between all pages
 - URLs update correctly
 
-## Current Known Issues (Captured by Tests)
+## Design Decisions
 
-1. **SQL→SQL Transfer Not Implemented in Web UI**
-   - Test: `NewTransferPage_SqlToSql_Submit_Should_Show_Error_Or_NotImplemented`
-   - Expected: Shows NotImplementedException error
-   - This is by design - SQL→SQL uses different orchestrator (DataTransferOrchestrator)
-   - **Fix needed**: Either implement support or remove option from UI
+1. **SQL→SQL Transfer Not Available in Web UI**
+   - Test: `NewTransferPage_Should_Only_Show_Supported_Transfer_Types`
+   - SQL→SQL transfers use the legacy `DataTransferOrchestrator` with multi-table configuration
+   - Web UI focuses on new bi-directional features using `UnifiedTransferOrchestrator`
+   - For SQL→SQL migrations, use the console application with `demo-config.json`
 
 ## Test Design Philosophy
 

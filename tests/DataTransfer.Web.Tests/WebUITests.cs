@@ -177,7 +177,7 @@ public class WebUITests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task NewTransferPage_SqlToSql_Submit_Should_Show_Error_Or_NotImplemented()
+    public async Task NewTransferPage_Should_Only_Show_Supported_Transfer_Types()
     {
         // Arrange
         var page = await _browser!.NewPageAsync();
@@ -188,36 +188,32 @@ public class WebUITests : IAsyncLifetime
             await page.GotoAsync($"{BaseUrl}/transfer/new");
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
-            // Select SQL→SQL transfer type
-            await page.Locator("select").SelectOptionAsync("SqlToSql");
-            await page.WaitForTimeoutAsync(500);
+            // Assert - Should only have two transfer type options
+            var selectElement = page.Locator("select");
+            var options = selectElement.Locator("option");
+            var optionCount = await options.CountAsync();
 
-            // Fill in minimal form data (both source and destination SQL Server)
-            var connectionStrings = page.Locator("input[class*='form-control']").Filter(new() { HasText = "" });
+            Assert.Equal(2, optionCount);
 
-            // Try to submit (even with empty data, we want to see what error we get)
-            var submitButton = page.Locator("button[type='submit']");
-            await submitButton.ClickAsync();
+            // Assert - SQL→Parquet option exists
+            var sqlToParquetOption = options.Nth(0);
+            await Assertions.Expect(sqlToParquetOption).ToHaveAttributeAsync("value", "SqlToParquet");
+            await Assertions.Expect(sqlToParquetOption).ToContainTextAsync("SQL Server → Parquet");
 
-            // Wait for response
-            await page.WaitForTimeoutAsync(2000);
+            // Assert - Parquet→SQL option exists
+            var parquetToSqlOption = options.Nth(1);
+            await Assertions.Expect(parquetToSqlOption).ToHaveAttributeAsync("value", "ParquetToSql");
+            await Assertions.Expect(parquetToSqlOption).ToContainTextAsync("Parquet → SQL Server");
 
-            // Assert - Should show some kind of error or not implemented message
-            // This test documents the CURRENT behavior (NotImplementedException)
-            var alertDanger = page.Locator(".alert-danger");
-            var hasError = await alertDanger.CountAsync() > 0;
-
-            // Expected behavior: Either shows validation error or NotImplementedException
-            Assert.True(hasError, "Expected to see an error message for SQL→SQL transfer");
-
-            // Document what error we see
-            if (hasError)
+            // Assert - SQL→SQL option does NOT exist (was removed because it requires different orchestrator)
+            var optionTexts = new List<string>();
+            for (int i = 0; i < optionCount; i++)
             {
-                var errorText = await alertDanger.First.TextContentAsync();
-                // We expect to see error about SQL→SQL not being implemented in UnifiedTransferOrchestrator
-                Assert.Contains("SQL→SQL", errorText);
-                Assert.Contains("DataTransferOrchestrator", errorText);
+                var text = await options.Nth(i).TextContentAsync();
+                optionTexts.Add(text ?? "");
             }
+
+            Assert.DoesNotContain(optionTexts, text => text.Contains("SQL Server → SQL Server"));
         }
         finally
         {

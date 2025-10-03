@@ -17,11 +17,10 @@
                 <InputSelect @bind-Value="_config.TransferType" class="form-select" @onchange="OnTransferTypeChanged">
                     <option value="@TransferType.SqlToParquet">SQL Server → Parquet (Export)</option>
                     <option value="@TransferType.ParquetToSql">Parquet → SQL Server (Import)</option>
-                    <option value="@TransferType.SqlToSql">SQL Server → SQL Server (Migration)</option>
                 </InputSelect>
             </div>
 
-            @if (_config.TransferType == TransferType.SqlToParquet || _config.TransferType == TransferType.SqlToSql)
+            @if (_config.TransferType == TransferType.SqlToParquet)
             {
                 <div class="card mb-3">
                     <div class="card-header bg-primary text-white">
@@ -66,7 +65,7 @@
                 </div>
             }
 
-            @if (_config.TransferType == TransferType.ParquetToSql || _config.TransferType == TransferType.SqlToSql)
+            @if (_config.TransferType == TransferType.ParquetToSql)
             {
                 <div class="card mb-3">
                     <div class="card-header bg-success text-white">
@@ -187,7 +186,7 @@
             _config.Destination = new DestinationConfiguration();
 
             // Configure source
-            if (_config.TransferType == TransferType.SqlToParquet || _config.TransferType == TransferType.SqlToSql)
+            if (_config.TransferType == TransferType.SqlToParquet)
             {
                 _config.Source.Type = SourceType.SqlServer;
                 _config.Source.ConnectionString = _sourceConnectionString;
@@ -205,7 +204,7 @@
             }
 
             // Configure destination
-            if (_config.TransferType == TransferType.ParquetToSql || _config.TransferType == TransferType.SqlToSql)
+            if (_config.TransferType == TransferType.ParquetToSql)
             {
                 _config.Destination.Type = DestinationType.SqlServer;
                 _config.Destination.ConnectionString = _destConnectionString;
