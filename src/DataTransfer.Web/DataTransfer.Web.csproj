@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\DataTransfer.Core\DataTransfer.Core.csproj" />
+    <ProjectReference Include="..\DataTransfer.Configuration\DataTransfer.Configuration.csproj" />
+    <ProjectReference Include="..\DataTransfer.Pipeline\DataTransfer.Pipeline.csproj" />
+    <ProjectReference Include="..\DataTransfer.SqlServer\DataTransfer.SqlServer.csproj" />
+    <ProjectReference Include="..\DataTransfer.Parquet\DataTransfer.Parquet.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

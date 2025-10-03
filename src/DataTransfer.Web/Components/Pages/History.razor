@@ -1,0 +1,125 @@
+@page "/history"
+@using DataTransfer.Core.Models
+@using DataTransfer.Web.Models
+@using DataTransfer.Web.Services
+@inject TransferHistoryService HistoryService
+
+<PageTitle>Transfer History</PageTitle>
+
+<h1>Transfer History</h1>
+
+<div class="card mt-3">
+    <div class="card-body">
+        @if (_history == null)
+        {
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        }
+        else if (_history.Count == 0)
+        {
+            <div class="alert alert-info">
+                <h5>No transfers yet</h5>
+                <p>Start your first transfer to see it appear here.</p>
+                <a href="/transfer/new" class="btn btn-primary">Create New Transfer</a>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Type</th>
+                            <th>Source</th>
+                            <th>Destination</th>
+                            <th>Rows</th>
+                            <th>Duration</th>
+                            <th>Start Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in _history)
+                        {
+                            <tr class="@(entry.Success ? "" : "table-danger")">
+                                <td>
+                                    @if (entry.Success)
+                                    {
+                                        <span class="badge bg-success">Success</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">Failed</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">@GetTransferTypeLabel(entry.TransferType)</span>
+                                </td>
+                                <td>
+                                    <small>@entry.SourceInfo</small>
+                                </td>
+                                <td>
+                                    <small>@entry.DestinationInfo</small>
+                                </td>
+                                <td>@entry.RowsTransferred.ToString("N0")</td>
+                                <td>@entry.Duration.TotalSeconds.ToString("F2")s</td>
+                                <td>
+                                    <small>@entry.StartTime.ToString("yyyy-MM-dd HH:mm:ss")</small>
+                                </td>
+                            </tr>
+                            @if (!entry.Success && !string.IsNullOrEmpty(entry.ErrorMessage))
+                            {
+                                <tr>
+                                    <td colspan="7">
+                                        <div class="alert alert-danger mb-0">
+                                            <strong>Error:</strong> @entry.ErrorMessage
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-3">
+                <button class="btn btn-secondary" @onclick="RefreshHistory">
+                    <span class="bi bi-arrow-clockwise"></span> Refresh
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<TransferHistoryEntry>? _history;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHistory();
+    }
+
+    private async Task LoadHistory()
+    {
+        _history = await HistoryService.GetAllAsync();
+    }
+
+    private async Task RefreshHistory()
+    {
+        await LoadHistory();
+    }
+
+    private static string GetTransferTypeLabel(TransferType type)
+    {
+        return type switch
+        {
+            TransferType.SqlToParquet => "SQL → Parquet",
+            TransferType.ParquetToSql => "Parquet → SQL",
+            TransferType.SqlToSql => "SQL → SQL",
+            _ => type.ToString()
+        };
+    }
+}

@@ -1,0 +1,247 @@
+@page "/transfer/new"
+@using DataTransfer.Core.Models
+@using DataTransfer.Web.Services
+@inject TransferExecutionService ExecutionService
+@inject NavigationManager Navigation
+
+<PageTitle>New Transfer</PageTitle>
+
+<h1>Configure New Transfer</h1>
+
+<div class="card mt-3">
+    <div class="card-body">
+        <EditForm Model="@_config" OnValidSubmit="@HandleSubmit">
+            <div class="mb-3">
+                <label class="form-label">Transfer Type</label>
+                <InputSelect @bind-Value="_config.TransferType" class="form-select" @onchange="OnTransferTypeChanged">
+                    <option value="@TransferType.SqlToParquet">SQL Server → Parquet (Export)</option>
+                    <option value="@TransferType.ParquetToSql">Parquet → SQL Server (Import)</option>
+                    <option value="@TransferType.SqlToSql">SQL Server → SQL Server (Migration)</option>
+                </InputSelect>
+            </div>
+
+            @if (_config.TransferType == TransferType.SqlToParquet || _config.TransferType == TransferType.SqlToSql)
+            {
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">SQL Server Source</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Connection String</label>
+                            <input @bind="_sourceConnectionString" class="form-control" placeholder="Server=localhost;Database=MyDb;Integrated Security=true;" />
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label">Database</label>
+                                <input @bind="_sourceDatabase" class="form-control" placeholder="MyDatabase" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Schema</label>
+                                <input @bind="_sourceSchema" class="form-control" placeholder="dbo" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Table</label>
+                                <input @bind="_sourceTable" class="form-control" placeholder="MyTable" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (_config.TransferType == TransferType.ParquetToSql)
+            {
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Parquet Source</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Parquet File Path</label>
+                            <input @bind="_sourceParquetPath" class="form-control" placeholder="./exports/data.parquet" />
+                            <div class="form-text">Path relative to parquet-files directory, or absolute path with partitions</div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (_config.TransferType == TransferType.ParquetToSql || _config.TransferType == TransferType.SqlToSql)
+            {
+                <div class="card mb-3">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">SQL Server Destination</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Connection String</label>
+                            <input @bind="_destConnectionString" class="form-control" placeholder="Server=localhost;Database=MyDb;Integrated Security=true;" />
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label">Database</label>
+                                <input @bind="_destDatabase" class="form-control" placeholder="MyDatabase" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Schema</label>
+                                <input @bind="_destSchema" class="form-control" placeholder="dbo" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Table</label>
+                                <input @bind="_destTable" class="form-control" placeholder="MyTable" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (_config.TransferType == TransferType.SqlToParquet)
+            {
+                <div class="card mb-3">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Parquet Destination</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Parquet File Name</label>
+                            <input @bind="_destParquetPath" class="form-control" placeholder="export_data.parquet" />
+                            <div class="form-text">File will be created in parquet-files directory with date partitioning</div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <button type="submit" class="btn btn-primary btn-lg" disabled="@_isProcessing">
+                    @if (_isProcessing)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <span>Processing...</span>
+                    }
+                    else
+                    {
+                        <span class="bi bi-play-circle me-2"></span>
+                        <span>Execute Transfer</span>
+                    }
+                </button>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@if (_isProcessing)
+{
+    <div class="alert alert-info mt-3">
+        <h5>Transfer in Progress</h5>
+        <p>Transfer ID: <code>@_currentTransferId</code></p>
+        <div class="progress">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(_resultMessage))
+{
+    <div class="alert @(_transferSuccess ? "alert-success" : "alert-danger") mt-3">
+        <h5>@(_transferSuccess ? "Transfer Completed Successfully" : "Transfer Failed")</h5>
+        <p>@_resultMessage</p>
+    </div>
+}
+
+@code {
+    private TransferConfiguration _config = new();
+    private bool _isProcessing;
+    private string? _currentTransferId;
+    private string? _resultMessage;
+    private bool _transferSuccess;
+
+    // Source fields
+    private string _sourceConnectionString = "";
+    private string _sourceDatabase = "";
+    private string _sourceSchema = "dbo";
+    private string _sourceTable = "";
+    private string _sourceParquetPath = "";
+
+    // Destination fields
+    private string _destConnectionString = "";
+    private string _destDatabase = "";
+    private string _destSchema = "dbo";
+    private string _destTable = "";
+    private string _destParquetPath = "";
+
+    private void OnTransferTypeChanged(ChangeEventArgs e)
+    {
+        _resultMessage = null;
+    }
+
+    private async Task HandleSubmit()
+    {
+        _isProcessing = true;
+        _resultMessage = null;
+        _currentTransferId = Guid.NewGuid().ToString();
+
+        try
+        {
+            // Build configuration from form fields
+            _config.Source = new SourceConfiguration();
+            _config.Destination = new DestinationConfiguration();
+
+            // Configure source
+            if (_config.TransferType == TransferType.SqlToParquet || _config.TransferType == TransferType.SqlToSql)
+            {
+                _config.Source.Type = SourceType.SqlServer;
+                _config.Source.ConnectionString = _sourceConnectionString;
+                _config.Source.Table = new TableIdentifier
+                {
+                    Database = _sourceDatabase,
+                    Schema = _sourceSchema,
+                    Table = _sourceTable
+                };
+            }
+            else
+            {
+                _config.Source.Type = SourceType.Parquet;
+                _config.Source.ParquetPath = _sourceParquetPath;
+            }
+
+            // Configure destination
+            if (_config.TransferType == TransferType.ParquetToSql || _config.TransferType == TransferType.SqlToSql)
+            {
+                _config.Destination.Type = DestinationType.SqlServer;
+                _config.Destination.ConnectionString = _destConnectionString;
+                _config.Destination.Table = new TableIdentifier
+                {
+                    Database = _destDatabase,
+                    Schema = _destSchema,
+                    Table = _destTable
+                };
+            }
+            else
+            {
+                _config.Destination.Type = DestinationType.Parquet;
+                _config.Destination.ParquetPath = _destParquetPath;
+            }
+
+            var result = await ExecutionService.ExecuteAsync(_config, _currentTransferId);
+
+            _transferSuccess = result.Success;
+            _resultMessage = result.Success
+                ? $"Successfully transferred {result.RowsLoaded:N0} rows in {result.Duration.TotalSeconds:F2} seconds"
+                : $"Transfer failed: {result.ErrorMessage}";
+
+            if (result.Success)
+            {
+                await Task.Delay(2000);
+                Navigation.NavigateTo("/history");
+            }
+        }
+        catch (Exception ex)
+        {
+            _transferSuccess = false;
+            _resultMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+}

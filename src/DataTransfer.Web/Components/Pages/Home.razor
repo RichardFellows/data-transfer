@@ -1,0 +1,95 @@
+@page "/"
+@using DataTransfer.Web.Services
+@inject TransferHistoryService HistoryService
+
+<PageTitle>Data Transfer Dashboard</PageTitle>
+
+<h1>Data Transfer Dashboard</h1>
+<p class="lead">Bi-directional SQL Server ↔ Parquet data transfers</p>
+
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">Total Transfers</h5>
+                <p class="display-4">@_stats?.TotalTransfers</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">Successful</h5>
+                <p class="display-4 text-success">@_stats?.SuccessfulTransfers</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">Failed</h5>
+                <p class="display-4 text-danger">@_stats?.FailedTransfers</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">Total Rows</h5>
+                <p class="display-4">@_stats?.TotalRowsTransferred.ToString("N0")</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Supported Transfer Types</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="p-3 border rounded">
+                            <h6>SQL Server → Parquet</h6>
+                            <p class="text-muted">Export SQL data to Parquet files for archival or analytics</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 border rounded">
+                            <h6>Parquet → SQL Server</h6>
+                            <p class="text-muted">Import Parquet files into SQL Server tables</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 border rounded">
+                            <h6>SQL Server → SQL Server</h6>
+                            <p class="text-muted">Migrate data between servers via Parquet intermediate storage</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <a href="/transfer/new" class="btn btn-primary btn-lg">
+            <span class="bi bi-plus-circle"></span> Start New Transfer
+        </a>
+        <a href="/history" class="btn btn-outline-secondary btn-lg ms-2">
+            <span class="bi bi-clock-history"></span> View History
+        </a>
+    </div>
+</div>
+
+@code {
+    private TransferStatistics? _stats;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _stats = await HistoryService.GetStatisticsAsync();
+    }
+}
