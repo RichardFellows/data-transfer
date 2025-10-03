@@ -35,6 +35,7 @@ builder.Services.AddSingleton<UnifiedTransferOrchestrator>();
 // Web-specific services
 builder.Services.AddSingleton<TransferExecutionService>();
 builder.Services.AddSingleton<TransferHistoryService>();
+builder.Services.AddSingleton<DatabaseMetadataService>();
 
 var app = builder.Build();
 
