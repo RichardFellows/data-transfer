@@ -3,6 +3,7 @@
 @using DataTransfer.Web.Services
 @inject TransferExecutionService ExecutionService
 @inject NavigationManager Navigation
+@rendermode InteractiveServer
 
 <PageTitle>New Transfer</PageTitle>
 
@@ -10,7 +11,7 @@
 
 <div class="card mt-3">
     <div class="card-body">
-        <EditForm Model="@_config" OnValidSubmit="@HandleSubmit">
+        <EditForm Model="@_config" OnValidSubmit="@HandleSubmit" FormName="transferForm">
             <div class="mb-3">
                 <label class="form-label">Transfer Type</label>
                 <InputSelect @bind-Value="_config.TransferType" class="form-select" @onchange="OnTransferTypeChanged">
