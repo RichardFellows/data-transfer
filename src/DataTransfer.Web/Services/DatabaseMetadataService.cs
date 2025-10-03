@@ -123,17 +123,21 @@ public class DatabaseMetadataService
 
         var schemas = new List<string>();
 
-        await using var connection = new SqlConnection(connectionString);
+        // Modify connection string to include the database
+        var builder = new SqlConnectionStringBuilder(connectionString)
+        {
+            InitialCatalog = database
+        };
+
+        await using var connection = new SqlConnection(builder.ConnectionString);
         await connection.OpenAsync();
 
         var query = @"
             SELECT DISTINCT TABLE_SCHEMA
             FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_CATALOG = @database
             ORDER BY TABLE_SCHEMA";
 
         await using var command = new SqlCommand(query, connection);
-        command.Parameters.AddWithValue("@database", database);
         await using var reader = await command.ExecuteReaderAsync();
 
         while (await reader.ReadAsync())
@@ -160,17 +164,22 @@ public class DatabaseMetadataService
 
         var tables = new List<TableInfo>();
 
-        await using var connection = new SqlConnection(connectionString);
+        // Modify connection string to include the database
+        var builder = new SqlConnectionStringBuilder(connectionString)
+        {
+            InitialCatalog = database
+        };
+
+        await using var connection = new SqlConnection(builder.ConnectionString);
         await connection.OpenAsync();
 
         var query = @"
             SELECT TABLE_NAME, TABLE_TYPE
             FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_CATALOG = @database AND TABLE_SCHEMA = @schema
+            WHERE TABLE_SCHEMA = @schema
             ORDER BY TABLE_NAME";
 
         await using var command = new SqlCommand(query, connection);
-        command.Parameters.AddWithValue("@database", database);
         command.Parameters.AddWithValue("@schema", schema);
         await using var reader = await command.ExecuteReaderAsync();
 
