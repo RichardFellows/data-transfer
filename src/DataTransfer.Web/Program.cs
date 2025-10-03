@@ -36,6 +36,8 @@ builder.Services.AddSingleton<UnifiedTransferOrchestrator>();
 builder.Services.AddSingleton<TransferExecutionService>();
 builder.Services.AddSingleton<TransferHistoryService>();
 builder.Services.AddSingleton<DatabaseMetadataService>();
+builder.Services.AddSingleton<ParquetFileService>(sp =>
+    new ParquetFileService(sp.GetRequiredService<ILogger<ParquetFileService>>(), "./parquet-files"));
 
 var app = builder.Build();
 

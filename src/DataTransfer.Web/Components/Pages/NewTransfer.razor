@@ -4,6 +4,7 @@
 @using DataTransfer.Web.Models
 @inject TransferExecutionService ExecutionService
 @inject DatabaseMetadataService MetadataService
+@inject ParquetFileService ParquetFileService
 @inject NavigationManager Navigation
 @inject IConfiguration Configuration
 @rendermode InteractiveServer
@@ -161,9 +162,33 @@
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
-                            <label class="form-label">Parquet File Path</label>
-                            <input @bind="_sourceParquetPath" class="form-control" placeholder="./exports/data.parquet" />
-                            <div class="form-text">Path relative to parquet-files directory, or absolute path with partitions</div>
+                            <label class="form-label">Parquet File</label>
+                            <div class="d-flex gap-2 align-items-start">
+                                <div class="flex-grow-1">
+                                    <select id="parquetFile" @bind="_sourceParquetPath" class="form-select" title="Select Parquet file to import">
+                                        <option value="">-- Select Parquet File --</option>
+                                        @foreach (var file in _availableParquetFiles)
+                                        {
+                                            <option value="@file.RelativePath">@file.DisplayName</option>
+                                        }
+                                    </select>
+                                    @if (_availableParquetFiles.Any())
+                                    {
+                                        <div class="form-text text-muted">
+                                            <small>@_availableParquetFiles.Count file(s) available in parquet-files directory</small>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="form-text text-warning">
+                                            <small>⚠️ No Parquet files found. Export some data using SQL→Parquet first.</small>
+                                        </div>
+                                    }
+                                </div>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="RefreshParquetFiles" title="Refresh file list">
+                                    <span class="bi bi-arrow-clockwise"></span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -295,6 +320,9 @@
         : _availableTables.Where(t => t.Name.Contains(_tableSearchText, StringComparison.OrdinalIgnoreCase) ||
                                        t.Type.Contains(_tableSearchText, StringComparison.OrdinalIgnoreCase));
 
+    // Parquet file selection
+    private List<ParquetFileInfo> _availableParquetFiles = new();
+
     protected override void OnInitialized()
     {
         // Load connection presets from configuration
@@ -311,6 +339,14 @@
         // Load recent connections from localStorage (simulated with empty list for now)
         // In a real implementation, this would use JSInterop to access localStorage
         _recentConnections = new List<string>();
+
+        // Load available Parquet files
+        RefreshParquetFiles();
+    }
+
+    private void RefreshParquetFiles()
+    {
+        _availableParquetFiles = ParquetFileService.GetAvailableParquetFiles();
     }
 
     private async Task LoadRecentConnection(string connectionString)
