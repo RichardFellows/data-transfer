@@ -150,9 +150,9 @@ public class WebUITests : PlaywrightTestBase
             var sqlDestHeader = page.Locator("text=SQL Server Destination");
             await Assertions.Expect(sqlDestHeader).ToBeVisibleAsync();
 
-            // Assert - Parquet file path field
-            var parquetPath = page.Locator("label:text('Parquet File Path')");
-            await Assertions.Expect(parquetPath).ToBeVisibleAsync();
+            // Assert - Parquet file dropdown
+            var parquetFile = page.Locator("label:text('Parquet File')");
+            await Assertions.Expect(parquetFile).ToBeVisibleAsync();
 
             // Assert - Destination connection string field
             var destConnectionString = page.Locator("label:text('Connection String')").Last;
