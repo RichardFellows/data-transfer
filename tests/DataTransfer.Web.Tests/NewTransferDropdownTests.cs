@@ -6,31 +6,10 @@ namespace DataTransfer.Web.Tests;
 /// <summary>
 /// Playwright tests for NewTransfer page cascading dropdowns
 /// Tests dynamic table selection functionality
+/// Screenshots are automatically saved for visual documentation
 /// </summary>
-public class NewTransferDropdownTests : IAsyncLifetime
+public class NewTransferDropdownTests : PlaywrightTestBase
 {
-    private IPlaywright? _playwright;
-    private IBrowser? _browser;
-    private const string BaseUrl = "http://localhost:5000";
-
-    public async Task InitializeAsync()
-    {
-        _playwright = await Playwright.CreateAsync();
-        _browser = await _playwright.Chromium.LaunchAsync(new()
-        {
-            Headless = true
-        });
-    }
-
-    public async Task DisposeAsync()
-    {
-        if (_browser != null)
-        {
-            await _browser.CloseAsync();
-            await _browser.DisposeAsync();
-        }
-        _playwright?.Dispose();
-    }
 
     [Fact]
     public async Task NewTransfer_Should_Have_Connection_Preset_Dropdown()
@@ -60,6 +39,9 @@ public class NewTransferDropdownTests : IAsyncLifetime
             // Assert - Should have "Custom" option
             var customOption = options.Locator("text=Custom");
             await Assertions.Expect(customOption).ToBeAttachedAsync();
+
+            // Capture screenshot for documentation
+            await CaptureScreenshotAsync(page, "CascadingDropdowns", "01_connection_preset");
         }
         finally
         {
@@ -97,6 +79,9 @@ public class NewTransferDropdownTests : IAsyncLifetime
                 // Assert - Database dropdown should be visible
                 var databaseDropdown = page.Locator("select#database");
                 await Assertions.Expect(databaseDropdown).ToBeVisibleAsync();
+
+                // Capture screenshot for documentation
+                await CaptureScreenshotAsync(page, "CascadingDropdowns", "02_database_dropdown");
             }
         }
         finally
@@ -136,6 +121,9 @@ public class NewTransferDropdownTests : IAsyncLifetime
                     // Assert - Schema dropdown should be visible
                     var schemaDropdown = page.Locator("select#schema");
                     await Assertions.Expect(schemaDropdown).ToBeVisibleAsync();
+
+                    // Capture screenshot for documentation
+                    await CaptureScreenshotAsync(page, "CascadingDropdowns", "03_schema_dropdown");
                 }
             }
         }
@@ -176,6 +164,9 @@ public class NewTransferDropdownTests : IAsyncLifetime
                     // Assert - Table dropdown should be visible
                     var tableDropdown = page.Locator("select#table");
                     await Assertions.Expect(tableDropdown).ToBeVisibleAsync();
+
+                    // Capture screenshot for documentation
+                    await CaptureScreenshotAsync(page, "CascadingDropdowns", "04_table_dropdown");
                 }
             }
         }
@@ -204,6 +195,9 @@ public class NewTransferDropdownTests : IAsyncLifetime
             // Assert - Test connection button should be visible
             var testButton = page.Locator("button:has-text('Test Connection')");
             await Assertions.Expect(testButton).ToBeVisibleAsync();
+
+            // Capture screenshot for documentation
+            await CaptureScreenshotAsync(page, "CascadingDropdowns", "05_test_connection");
         }
         finally
         {
@@ -232,6 +226,9 @@ public class NewTransferDropdownTests : IAsyncLifetime
             var searchInput = page.Locator("input[id='tableSearch'], input[placeholder*='Search']");
             var count = await searchInput.CountAsync();
             Assert.True(count >= 0, "Table search functionality should be present in the page");
+
+            // Capture screenshot for documentation
+            await CaptureScreenshotAsync(page, "CascadingDropdowns", "06_table_search");
         }
         finally
         {
@@ -270,6 +267,9 @@ public class NewTransferDropdownTests : IAsyncLifetime
                 var filteredCount = await initialOptions.CountAsync();
                 // Note: This test is conditional - filtering only happens if there are tables
                 Assert.True(filteredCount <= initialCount, "Filtered count should be less than or equal to initial count");
+
+                // Capture screenshot for documentation
+                await CaptureScreenshotAsync(page, "CascadingDropdowns", "07_table_filter");
             }
         }
         finally
@@ -297,6 +297,9 @@ public class NewTransferDropdownTests : IAsyncLifetime
             // Assert - Recent connections text or element should exist
             var recentElement = page.Locator("id=recentConnections");
             await Assertions.Expect(recentElement).ToBeAttachedAsync();
+
+            // Capture screenshot for documentation
+            await CaptureScreenshotAsync(page, "CascadingDropdowns", "08_recent_connections");
         }
         finally
         {

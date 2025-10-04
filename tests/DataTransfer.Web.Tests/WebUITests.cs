@@ -6,31 +6,10 @@ namespace DataTransfer.Web.Tests;
 /// <summary>
 /// End-to-end tests for the DataTransfer web UI
 /// Tests are designed to verify expected behavior and capture current state
+/// Screenshots are automatically saved for visual documentation
 /// </summary>
-public class WebUITests : IAsyncLifetime
+public class WebUITests : PlaywrightTestBase
 {
-    private IPlaywright? _playwright;
-    private IBrowser? _browser;
-    private const string BaseUrl = "http://localhost:5000";
-
-    public async Task InitializeAsync()
-    {
-        _playwright = await Playwright.CreateAsync();
-        _browser = await _playwright.Chromium.LaunchAsync(new()
-        {
-            Headless = true
-        });
-    }
-
-    public async Task DisposeAsync()
-    {
-        if (_browser != null)
-        {
-            await _browser.CloseAsync();
-            await _browser.DisposeAsync();
-        }
-        _playwright?.Dispose();
-    }
 
     [Fact]
     public async Task HomePage_Should_Load_And_Display_Dashboard()
@@ -60,6 +39,9 @@ public class WebUITests : IAsyncLifetime
 
             var historyLink = page.Locator("a[href='/history']");
             await Assertions.Expect(historyLink).ToBeVisibleAsync();
+
+            // Capture screenshot for documentation
+            await CaptureScreenshotAsync(page, "HomePage", "dashboard_loaded");
         }
         finally
         {
@@ -89,6 +71,9 @@ public class WebUITests : IAsyncLifetime
             var submitButton = page.Locator("button[type='submit']");
             await Assertions.Expect(submitButton).ToBeVisibleAsync();
             await Assertions.Expect(submitButton).ToContainTextAsync("Execute Transfer");
+
+            // Capture screenshot for documentation
+            await CaptureScreenshotAsync(page, "NewTransferPage", "initial_form");
         }
         finally
         {
@@ -131,6 +116,9 @@ public class WebUITests : IAsyncLifetime
             // Assert - Parquet file name field
             var parquetFileName = page.Locator("label:text('Parquet File Name')");
             await Assertions.Expect(parquetFileName).ToBeVisibleAsync();
+
+            // Capture screenshot for documentation
+            await CaptureScreenshotAsync(page, "NewTransferPage", "sql_to_parquet_form");
         }
         finally
         {
@@ -169,6 +157,9 @@ public class WebUITests : IAsyncLifetime
             // Assert - Destination connection string field
             var destConnectionString = page.Locator("label:text('Connection String')").Last;
             await Assertions.Expect(destConnectionString).ToBeVisibleAsync();
+
+            // Capture screenshot for documentation
+            await CaptureScreenshotAsync(page, "NewTransferPage", "parquet_to_sql_form");
         }
         finally
         {
@@ -214,6 +205,9 @@ public class WebUITests : IAsyncLifetime
             }
 
             Assert.DoesNotContain(optionTexts, text => text.Contains("SQL Server → SQL Server"));
+
+            // Capture screenshot for documentation
+            await CaptureScreenshotAsync(page, "NewTransferPage", "transfer_types");
         }
         finally
         {
@@ -273,6 +267,9 @@ public class WebUITests : IAsyncLifetime
             {
                 await Assertions.Expect(refreshButton).ToBeVisibleAsync();
             }
+
+            // Capture screenshot for documentation
+            await CaptureScreenshotAsync(page, "HistoryPage", "transfer_history");
         }
         finally
         {
@@ -309,6 +306,9 @@ public class WebUITests : IAsyncLifetime
             await homeLink.ClickAsync();
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
             await Assertions.Expect(page).ToHaveURLAsync($"{BaseUrl}/");
+
+            // Capture screenshot for documentation
+            await CaptureScreenshotAsync(page, "Navigation", "back_to_home");
         }
         finally
         {
