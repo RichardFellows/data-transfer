@@ -4,15 +4,22 @@ A high-performance .NET 8 solution for transferring data between SQL Server inst
 
 ## Features
 
+- **Web UI**: Modern Blazor Server interface for interactive data transfers
+  - SQL Server → Parquet exports with dynamic table selection
+  - Parquet → SQL Server imports with file browsing
+  - Cascading dropdowns for database/schema/table navigation
+  - Transfer history with success/failure tracking
+  - Visual screenshot-based test documentation
 - **Multiple Partition Strategies**: Date, Integer Date, SCD2 (Slowly Changing Dimensions), and Static tables
 - **Apache Parquet Storage**: Industry-standard columnar format with Snappy compression
 - **Date-Based Partitioning**: Hive-compatible partitioning scheme (`year=YYYY/month=MM/day=DD/`)
 - **Streaming Architecture**: Memory-efficient processing for large datasets (millions of rows)
 - **Production Ready**:
+  - Web UI and Console app deployment options
   - Docker support with 365MB optimized image
   - Comprehensive logging with Serilog (console and file outputs)
   - Robust error handling and recovery
-  - 111 tests including 5 E2E integration tests with real SQL Server
+  - 131+ tests including Playwright E2E tests with visual documentation
 - **Configurable**: JSON-based configuration with validation
 - **High Performance**: SqlBulkCopy for fast loading, async/await throughout
 
@@ -126,7 +133,20 @@ For reference tables without date-based partitioning:
 
 ## Usage
 
-### Local Execution
+### Web UI (Recommended for Interactive Use)
+
+Run the Blazor Server web application:
+```bash
+dotnet run --project src/DataTransfer.Web
+```
+
+Then navigate to `http://localhost:5000` to access the interactive UI featuring:
+- **New Transfer**: Configure and execute SQL→Parquet or Parquet→SQL transfers
+- **Transfer History**: View past transfers with status, row counts, and timing
+- **Dynamic Table Selection**: Cascading dropdowns auto-populate databases, schemas, and tables
+- **Connection Presets**: Save common connections in `appsettings.json`
+
+### Console Application (For Batch/Scheduled Operations)
 
 Run the console application:
 ```bash
@@ -260,20 +280,23 @@ DataTransfer/
 │   ├── DataTransfer.SqlServer/         # SQL Server extraction and loading
 │   ├── DataTransfer.Parquet/           # Parquet file operations
 │   ├── DataTransfer.Pipeline/          # Transfer orchestration
-│   └── DataTransfer.Console/           # CLI application entry point
+│   ├── DataTransfer.Console/           # CLI application entry point
+│   └── DataTransfer.Web/               # Blazor Server web UI
 ├── tests/
 │   ├── DataTransfer.Core.Tests/        # 48 unit tests
 │   ├── DataTransfer.Configuration.Tests/ # 16 unit tests
 │   ├── DataTransfer.SqlServer.Tests/   # 21 unit tests
 │   ├── DataTransfer.Parquet.Tests/     # 11 unit tests
 │   ├── DataTransfer.Pipeline.Tests/    # 10 unit tests
-│   └── DataTransfer.Integration.Tests/ # 5 E2E tests (Testcontainers)
+│   ├── DataTransfer.Integration.Tests/ # 5 E2E tests (Testcontainers)
+│   └── DataTransfer.Web.Tests/         # 20+ Playwright E2E tests with screenshots
 ├── config/
 │   └── appsettings.json                # Configuration file
 ├── docker/
 │   └── Dockerfile                      # Docker deployment
 ├── CLAUDE.md                           # Project instructions for LLMs
 ├── ARCHITECTURE.md                     # Technical architecture details
+├── IMPROVEMENT_BACKLOG.md              # Prioritized feature backlog
 └── README.md                           # This file
 ```
 
@@ -281,10 +304,11 @@ DataTransfer/
 
 The solution includes comprehensive test coverage:
 
-- **111 total tests passing**
+- **131+ total tests passing**
 - **Unit tests**: 106 tests with mocked dependencies across 5 layers
 - **Integration tests**: 5 E2E tests with real SQL Server (Testcontainers)
-- **Test execution time**: ~19 seconds (optimized with shared containers + Respawn)
+- **Web UI tests**: 20+ Playwright E2E tests with visual screenshot documentation
+- **Test execution time**: ~19 seconds for unit/integration, ~25 seconds for Playwright
 - **Code coverage target**: 80%+ (enforced via coverlet)
 
 ### Test Categories
@@ -294,6 +318,8 @@ The solution includes comprehensive test coverage:
 - Error scenarios and recovery
 - Full Extract → Parquet → Load pipeline validation
 - Data integrity verification
+- Web UI interaction testing with automated screenshots
+- Complete workflow demonstrations (SQL→Parquet→SQL round-trip)
 
 ## Performance Characteristics
 
@@ -400,3 +426,5 @@ For issues, questions, or contributions, please refer to the project documentati
 - `ARCHITECTURE.md` - Detailed technical architecture
 - `CLAUDE.md` - Development guidelines and project instructions
 - `IMPLEMENTATION_STATUS.md` - Current project status and roadmap
+- `IMPROVEMENT_BACKLOG.md` - Prioritized feature backlog for future enhancements
+- `tests/DataTransfer.Web.Tests/README.Screenshots.md` - Screenshot testing documentation
