@@ -5,6 +5,7 @@
 @inject TransferExecutionService ExecutionService
 @inject DatabaseMetadataService MetadataService
 @inject ParquetFileService ParquetFileService
+@inject TransferProfileService ProfileService
 @inject NavigationManager Navigation
 @inject IConfiguration Configuration
 @rendermode InteractiveServer
@@ -12,6 +13,32 @@
 <PageTitle>New Transfer</PageTitle>
 
 <h1>Configure New Transfer</h1>
+
+@* Profile Loading Section *@
+<div class="card mt-3 border-info">
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <label class="form-label fw-bold">Load from Saved Profile</label>
+                <select id="profileSelector" @bind="_selectedProfileId" @bind:after="OnProfileSelected" class="form-select">
+                    <option value="">-- Start from scratch --</option>
+                    @foreach (var profile in _availableProfiles)
+                    {
+                        <option value="@profile.ProfileId">@profile.ProfileName @(string.IsNullOrEmpty(profile.Description) ? "" : $"- {profile.Description}")</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-4">
+                @if (!string.IsNullOrEmpty(_selectedProfileId))
+                {
+                    <div class="alert alert-success mb-0 mt-3">
+                        <small><strong>✓ Profile Loaded</strong></small>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
 
 <div class="card mt-3">
     <div class="card-body">
@@ -323,7 +350,11 @@
                 </div>
             }
 
-            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+            <div class="d-grid gap-2 d-md-flex justify-content-md-between">
+                <button type="button" class="btn btn-outline-primary" @onclick="ShowSaveProfileDialog" disabled="@_isProcessing">
+                    <span class="bi bi-save me-2"></span>
+                    <span>Save as Profile</span>
+                </button>
                 <button type="submit" class="btn btn-primary btn-lg" disabled="@_isProcessing">
                     @if (_isProcessing)
                     {
@@ -358,6 +389,48 @@
         <h5>@(_transferSuccess ? "Transfer Completed Successfully" : "Transfer Failed")</h5>
         <p>@_resultMessage</p>
     </div>
+}
+
+@* Save Profile Dialog *@
+@if (_showSaveProfileDialog)
+{
+    <div class="modal show d-block" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Save Transfer Profile</h5>
+                    <button type="button" class="btn-close" @onclick="CloseSaveProfileDialog"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Profile Name *</label>
+                        <input id="profileName" @bind="_newProfileName" class="form-control" placeholder="Daily Orders Extract" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea @bind="_newProfileDescription" class="form-control" rows="2" placeholder="Extracts last 30 days of orders for UAT testing"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tags (comma-separated)</label>
+                        <input @bind="_newProfileTags" class="form-control" placeholder="orders, daily, uat" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(_profileSaveMessage))
+                    {
+                        <div class="alert @(_profileSaveSuccess ? "alert-success" : "alert-danger")">
+                            @_profileSaveMessage
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseSaveProfileDialog">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveProfile" disabled="@string.IsNullOrWhiteSpace(_newProfileName)">
+                        <span class="bi bi-save me-2"></span>Save Profile
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
 }
 
 @code {
@@ -418,6 +491,23 @@
     private bool _isLoadingDestDatabases;
     private bool _isLoadingDestSchemas;
     private bool _isLoadingDestTables;
+
+    // Profile management fields
+    private List<TransferProfile> _availableProfiles = new();
+    private string _selectedProfileId = "";
+    private bool _showSaveProfileDialog;
+    private string _newProfileName = "";
+    private string? _newProfileDescription;
+    private string? _newProfileTags;
+    private bool _profileSaveSuccess;
+    private string? _profileSaveMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load available profiles
+        _availableProfiles = await ProfileService.GetAllProfilesAsync();
+        await base.OnInitializedAsync();
+    }
 
     protected override void OnInitialized()
     {
@@ -860,6 +950,145 @@
         finally
         {
             _isProcessing = false;
+        }
+    }
+
+    // Profile management methods
+    private async Task OnProfileSelected()
+    {
+        if (string.IsNullOrEmpty(_selectedProfileId))
+        {
+            return;
+        }
+
+        var profile = await ProfileService.GetProfileAsync(_selectedProfileId);
+        if (profile == null)
+        {
+            return;
+        }
+
+        // Load configuration from profile
+        _config = profile.Configuration;
+
+        // Populate form fields based on transfer type
+        if (profile.Configuration.TransferType == TransferType.SqlToParquet)
+        {
+            _sourceConnectionString = profile.Configuration.Source.ConnectionString ?? "";
+            if (profile.Configuration.Source.Table != null)
+            {
+                _sourceDatabase = profile.Configuration.Source.Table.Database;
+                _sourceSchema = profile.Configuration.Source.Table.Schema;
+                _sourceTable = profile.Configuration.Source.Table.Table;
+            }
+
+            _destParquetPath = profile.Configuration.Destination.ParquetPath ?? "";
+        }
+        else if (profile.Configuration.TransferType == TransferType.ParquetToSql)
+        {
+            _sourceParquetPath = profile.Configuration.Source.ParquetPath ?? "";
+            RefreshParquetFiles();
+
+            _destConnectionString = profile.Configuration.Destination.ConnectionString ?? "";
+            if (profile.Configuration.Destination.Table != null)
+            {
+                _destDatabase = profile.Configuration.Destination.Table.Database;
+                _destSchema = profile.Configuration.Destination.Table.Schema;
+                _destTable = profile.Configuration.Destination.Table.Table;
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private void ShowSaveProfileDialog()
+    {
+        _showSaveProfileDialog = true;
+        _newProfileName = "";
+        _newProfileDescription = null;
+        _newProfileTags = null;
+        _profileSaveMessage = null;
+    }
+
+    private void CloseSaveProfileDialog()
+    {
+        _showSaveProfileDialog = false;
+        _profileSaveMessage = null;
+    }
+
+    private async Task SaveProfile()
+    {
+        try
+        {
+            // Parse tags
+            var tags = string.IsNullOrWhiteSpace(_newProfileTags)
+                ? new List<string>()
+                : _newProfileTags.Split(',').Select(t => t.Trim()).Where(t => !string.IsNullOrEmpty(t)).ToList();
+
+            // Build current configuration
+            BuildConfigurationFromForm();
+
+            // Save profile
+            await ProfileService.SaveProfileAsync(_newProfileName, _newProfileDescription, _config, "web-user", tags);
+
+            _profileSaveSuccess = true;
+            _profileSaveMessage = $"Profile '{_newProfileName}' saved successfully!";
+
+            // Reload profiles list
+            _availableProfiles = await ProfileService.GetAllProfilesAsync();
+
+            // Close dialog after short delay
+            await Task.Delay(1500);
+            CloseSaveProfileDialog();
+        }
+        catch (Exception ex)
+        {
+            _profileSaveSuccess = false;
+            _profileSaveMessage = $"Error saving profile: {ex.Message}";
+        }
+    }
+
+    private void BuildConfigurationFromForm()
+    {
+        // This method is called from SaveProfile to capture current form state
+        // Configure source
+        if (_config.TransferType == TransferType.SqlToParquet)
+        {
+            _config.Source.Type = SourceType.SqlServer;
+            _config.Source.ConnectionString = _sourceConnectionString;
+            _config.Source.Table = new TableIdentifier
+            {
+                Database = _sourceDatabase,
+                Schema = _sourceSchema,
+                Table = _sourceTable
+            };
+        }
+        else
+        {
+            _config.Source.Type = SourceType.Parquet;
+            _config.Source.ParquetPath = _sourceParquetPath;
+        }
+
+        // Configure destination
+        if (_config.TransferType == TransferType.ParquetToSql)
+        {
+            _config.Destination.Type = DestinationType.SqlServer;
+            _config.Destination.ConnectionString = _destConnectionString;
+            _config.Destination.Table = new TableIdentifier
+            {
+                Database = _destDatabase,
+                Schema = _destSchema,
+                Table = _destTable
+            };
+        }
+        else
+        {
+            _config.Destination.Type = DestinationType.Parquet;
+            var parquetPath = _destParquetPath;
+            if (!string.IsNullOrEmpty(parquetPath) && !parquetPath.EndsWith(".parquet", StringComparison.OrdinalIgnoreCase))
+            {
+                parquetPath += ".parquet";
+            }
+            _config.Destination.ParquetPath = parquetPath;
         }
     }
 }

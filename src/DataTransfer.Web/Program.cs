@@ -38,6 +38,8 @@ builder.Services.AddSingleton<TransferHistoryService>();
 builder.Services.AddSingleton<DatabaseMetadataService>();
 builder.Services.AddSingleton<ParquetFileService>(sp =>
     new ParquetFileService(sp.GetRequiredService<ILogger<ParquetFileService>>(), "./parquet-files"));
+builder.Services.AddSingleton<TransferProfileService>(sp =>
+    new TransferProfileService(sp.GetRequiredService<ILogger<TransferProfileService>>(), "./profiles"));
 
 var app = builder.Build();
 
