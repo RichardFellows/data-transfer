@@ -3,12 +3,17 @@ using Xunit;
 namespace DataTransfer.Console.Tests;
 
 /// <summary>
-/// Integration tests for DataTransfer.Console application
-/// Tests command-line arguments, help output, and profile operations
+/// Layer 1: CLI Interface Integration Tests
+/// Tests command-line arguments, help output, and profile operations (no database required)
 /// </summary>
+[Collection("ConsoleApp")]
 public class ConsoleIntegrationTests : ConsoleTestBase
 {
-    [Fact(Skip = "Requires pre-built console app to avoid timeout during dotnet run compilation")]
+    public ConsoleIntegrationTests(ConsoleAppFixture fixture) : base(fixture)
+    {
+    }
+
+    [Fact]
     public async Task HelpCommand_Should_Display_Usage_Information()
     {
         // Arrange & Act
@@ -27,7 +32,7 @@ public class ConsoleIntegrationTests : ConsoleTestBase
         Assert.Contains("--help", capture.StandardOutput);
     }
 
-    [Fact(Skip = "Requires pre-built console app to avoid timeout during dotnet run compilation")]
+    [Fact]
     public async Task ListProfiles_Should_Return_Zero_Exit_Code()
     {
         // Arrange & Act
@@ -46,7 +51,7 @@ public class ConsoleIntegrationTests : ConsoleTestBase
             "Expected either 'No profiles found' or 'Saved Profiles:' in output");
     }
 
-    [Fact(Skip = "Requires pre-built console app to avoid timeout during dotnet run compilation")]
+    [Fact]
     public async Task InvalidProfile_Should_Return_NonZero_Exit_Code()
     {
         // Arrange & Act
@@ -64,7 +69,7 @@ public class ConsoleIntegrationTests : ConsoleTestBase
             "Expected 'not found' message for invalid profile");
     }
 
-    [Fact(Skip = "Requires pre-built console app to avoid timeout during dotnet run compilation")]
+    [Fact]
     public async Task InvalidConfigPath_Should_Handle_Gracefully()
     {
         // Arrange & Act
@@ -85,7 +90,7 @@ public class ConsoleIntegrationTests : ConsoleTestBase
             "Expected error message for invalid config path");
     }
 
-    [Fact(Skip = "Requires pre-built console app to avoid timeout during dotnet run compilation")]
+    [Fact]
     public async Task NoArguments_Should_Start_Interactive_Mode()
     {
         // Arrange & Act
@@ -103,7 +108,7 @@ public class ConsoleIntegrationTests : ConsoleTestBase
             "Expected interactive menu to be displayed");
     }
 
-    [Fact(Skip = "Requires pre-built console app to avoid timeout during dotnet run compilation")]
+    [Fact]
     public async Task MultipleArguments_Should_Process_Correctly()
     {
         // Arrange & Act - Test that unrecognized args don't crash
@@ -120,7 +125,7 @@ public class ConsoleIntegrationTests : ConsoleTestBase
             "Should produce some output for unknown arguments");
     }
 
-    [Fact(Skip = "Requires pre-built console app to avoid timeout during dotnet run compilation")]
+    [Fact]
     public async Task ConfigMode_With_Valid_Legacy_Config_Should_Work()
     {
         // This test assumes a valid config exists or will be created

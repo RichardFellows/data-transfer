@@ -17,6 +17,13 @@ public abstract class ConsoleTestBase : IAsyncLifetime
     protected static readonly List<ConsoleOutputCapture> Captures = new();
     protected const string ProjectPath = "src/DataTransfer.Console";
 
+    private readonly ConsoleAppFixture? _fixture;
+
+    protected ConsoleTestBase(ConsoleAppFixture? fixture = null)
+    {
+        _fixture = fixture;
+    }
+
     public virtual Task InitializeAsync()
     {
         // Ensure output directory exists
@@ -42,9 +49,27 @@ public abstract class ConsoleTestBase : IAsyncLifetime
     {
         var stopwatch = Stopwatch.StartNew();
 
-        var result = await Cli.Wrap("dotnet")
-            .WithArguments($"run --project {ProjectPath} -- {arguments}")
-            .WithWorkingDirectory("/home/richard/sonnet45")
+        Command command;
+        string commandDisplay;
+
+        if (_fixture != null)
+        {
+            // Use pre-built binary from fixture (fast path)
+            command = Cli.Wrap(_fixture.BinaryPath)
+                .WithArguments(arguments)
+                .WithWorkingDirectory(_fixture.WorkingDirectory);
+            commandDisplay = $"{Path.GetFileName(_fixture.BinaryPath)} {arguments}";
+        }
+        else
+        {
+            // Fall back to dotnet run (slow path, for backward compatibility)
+            command = Cli.Wrap("dotnet")
+                .WithArguments($"run --project {ProjectPath} -- {arguments}")
+                .WithWorkingDirectory("/home/richard/sonnet45");
+            commandDisplay = $"dotnet run --project {ProjectPath} -- {arguments}";
+        }
+
+        var result = await command
             .WithValidation(CommandResultValidation.None) // Don't throw on non-zero exit
             .ExecuteBufferedAsync(cancellationToken: new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(30)).Token);
 
@@ -54,8 +79,8 @@ public abstract class ConsoleTestBase : IAsyncLifetime
         {
             TestName = testName,
             StepName = stepName,
-            Command = "dotnet",
-            Arguments = $"run --project {ProjectPath} -- {arguments}",
+            Command = commandDisplay.Split(' ')[0],
+            Arguments = string.Join(" ", commandDisplay.Split(' ').Skip(1)),
             StandardOutput = result.StandardOutput,
             StandardError = result.StandardError,
             ExitCode = result.ExitCode,
@@ -131,10 +156,26 @@ public abstract class ConsoleTestBase : IAsyncLifetime
         // For interactive mode, we need to simulate stdin
         var stopwatch = Stopwatch.StartNew();
 
-        var command = Cli.Wrap("dotnet")
-            .WithArguments($"run --project {ProjectPath}")
-            .WithWorkingDirectory("/home/richard/sonnet45")
-            .WithValidation(CommandResultValidation.None);
+        Command command;
+        string commandDisplay;
+
+        if (_fixture != null)
+        {
+            // Use pre-built binary from fixture (fast path)
+            command = Cli.Wrap(_fixture.BinaryPath)
+                .WithWorkingDirectory(_fixture.WorkingDirectory);
+            commandDisplay = $"{Path.GetFileName(_fixture.BinaryPath)} (interactive)";
+        }
+        else
+        {
+            // Fall back to dotnet run (slow path)
+            command = Cli.Wrap("dotnet")
+                .WithArguments($"run --project {ProjectPath}")
+                .WithWorkingDirectory("/home/richard/sonnet45");
+            commandDisplay = $"dotnet run --project {ProjectPath} (interactive)";
+        }
+
+        command = command.WithValidation(CommandResultValidation.None);
 
         if (!string.IsNullOrEmpty(input))
         {
@@ -150,8 +191,8 @@ public abstract class ConsoleTestBase : IAsyncLifetime
         {
             TestName = testName,
             StepName = stepName,
-            Command = "dotnet",
-            Arguments = $"run --project {ProjectPath} (interactive mode)",
+            Command = commandDisplay.Split(' ')[0],
+            Arguments = string.Join(" ", commandDisplay.Split(' ').Skip(1)),
             StandardOutput = result.StandardOutput,
             StandardError = result.StandardError,
             ExitCode = result.ExitCode,
