@@ -1,6 +1,6 @@
 using DataTransfer.Core.Models;
 
-namespace DataTransfer.Web.Models;
+namespace DataTransfer.Configuration.Models;
 
 /// <summary>
 /// Represents a saved transfer configuration profile/template

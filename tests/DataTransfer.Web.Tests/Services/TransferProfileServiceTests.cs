@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using DataTransfer.Web.Services;
-using DataTransfer.Web.Models;
+using DataTransfer.Configuration.Services;
+using DataTransfer.Configuration.Models;
 using DataTransfer.Core.Models;
 using Xunit;
 

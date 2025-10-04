@@ -4,6 +4,7 @@ using DataTransfer.Pipeline;
 using DataTransfer.SqlServer;
 using DataTransfer.Web.Components;
 using DataTransfer.Web.Services;
+using DataTransfer.Configuration.Services;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);

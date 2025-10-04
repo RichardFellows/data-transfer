@@ -1,8 +1,9 @@
 using System.Text.Json;
 using DataTransfer.Core.Models;
-using DataTransfer.Web.Models;
+using DataTransfer.Configuration.Models;
+using Microsoft.Extensions.Logging;
 
-namespace DataTransfer.Web.Services;
+namespace DataTransfer.Configuration.Services;
 
 /// <summary>
 /// Service for managing transfer profiles (templates) with file-based storage
