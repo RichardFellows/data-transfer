@@ -81,22 +81,11 @@ public class WorkflowTests : PlaywrightTestBase
                                     await CaptureScreenshotAsync(page, "Workflow_SqlToParquet", "07_table_selected");
 
                                     // Step 8: Enter Parquet file name
-                                    // Find the Parquet file name input more specifically
-                                    var inputs = page.Locator("input[type='text']");
-                                    var inputCount = await inputs.CountAsync();
-
-                                    // The Parquet filename input should be visible
-                                    for (int i = 0; i < inputCount; i++)
-                                    {
-                                        var input = inputs.Nth(i);
-                                        var placeholder = await input.GetAttributeAsync("placeholder");
-                                        if (placeholder?.Contains("parquet") == true)
-                                        {
-                                            await input.FillAsync("exported_table");
-                                            await page.WaitForTimeoutAsync(500);
-                                            break;
-                                        }
-                                    }
+                                    // Use more specific selector to find the Parquet File Name input
+                                    var parquetFileNameLabel = page.Locator("label:has-text('Parquet File Name')");
+                                    var parquetFileNameInput = parquetFileNameLabel.Locator("..").Locator("input");
+                                    await parquetFileNameInput.FillAsync("workflow_export");
+                                    await page.WaitForTimeoutAsync(500);
 
                                     await CaptureScreenshotAsync(page, "Workflow_SqlToParquet", "08_parquet_filename_entered");
 
@@ -146,6 +135,8 @@ public class WorkflowTests : PlaywrightTestBase
 
             // Step 3: Select Parquet file from dropdown
             var parquetFileDropdown = page.Locator("select#parquetFile");
+            string? selectedParquetFile = null;
+
             if (await parquetFileDropdown.IsVisibleAsync())
             {
                 var fileOptions = parquetFileDropdown.Locator("option");
@@ -156,6 +147,10 @@ public class WorkflowTests : PlaywrightTestBase
                     // Select first available file (index 1, skipping placeholder)
                     await parquetFileDropdown.SelectOptionAsync(new SelectOptionValue { Index = 1 });
                     await page.WaitForTimeoutAsync(500);
+
+                    // Get the selected file name to help match with destination table
+                    selectedParquetFile = await parquetFileDropdown.InputValueAsync();
+
                     await CaptureScreenshotAsync(page, "Workflow_ParquetToSql", "03_parquet_file_selected");
                 }
             }
@@ -214,8 +209,46 @@ public class WorkflowTests : PlaywrightTestBase
 
                                         if (tableCount > 1)
                                         {
-                                            // Select first table
-                                            await destTableDropdown.SelectOptionAsync(new SelectOptionValue { Index = 1 });
+                                            // Try to find a table matching the Parquet file name
+                                            int selectedIndex = 1;
+                                            string? matchingTableName = null;
+
+                                            // Extract table name from Parquet file path (e.g., "year=2025/.../customers.parquet" -> "customers")
+                                            if (!string.IsNullOrEmpty(selectedParquetFile))
+                                            {
+                                                var fileName = selectedParquetFile.Split('/').Last();
+                                                matchingTableName = System.IO.Path.GetFileNameWithoutExtension(fileName);
+                                            }
+
+                                            // Look for a table with matching name, or skip system tables
+                                            for (int i = 1; i < tableCount; i++)
+                                            {
+                                                var optionText = await tableOptions.Nth(i).TextContentAsync();
+                                                if (optionText != null)
+                                                {
+                                                    // First priority: find table matching Parquet file name
+                                                    if (matchingTableName != null &&
+                                                        optionText.Contains(matchingTableName, StringComparison.OrdinalIgnoreCase))
+                                                    {
+                                                        selectedIndex = i;
+                                                        break;
+                                                    }
+
+                                                    // Second priority: skip system tables (MS*, spt_*, sys*, dt_*)
+                                                    bool isSystemTable = optionText.StartsWith("MS", StringComparison.OrdinalIgnoreCase) ||
+                                                                        optionText.StartsWith("spt_", StringComparison.OrdinalIgnoreCase) ||
+                                                                        optionText.StartsWith("sys", StringComparison.OrdinalIgnoreCase) ||
+                                                                        optionText.StartsWith("dt_", StringComparison.OrdinalIgnoreCase);
+
+                                                    if (!isSystemTable && selectedIndex == 1)
+                                                    {
+                                                        selectedIndex = i;
+                                                        // Don't break - keep looking for matching table name
+                                                    }
+                                                }
+                                            }
+
+                                            await destTableDropdown.SelectOptionAsync(new SelectOptionValue { Index = selectedIndex });
                                             await page.WaitForTimeoutAsync(500);
                                             await CaptureScreenshotAsync(page, "Workflow_ParquetToSql", "08_destination_table_selected");
 
