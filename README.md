@@ -4,12 +4,21 @@ A high-performance .NET 8 solution for transferring data between SQL Server inst
 
 ## Features
 
+- **Transfer Profiles**: Save and reuse transfer configurations
+  - File-based storage for portability and version control
+  - Create profiles via Web UI, execute via Console for automation
+  - Shared between Web and Console apps
+  - Support for tags, descriptions, and metadata
 - **Web UI**: Modern Blazor Server interface for interactive data transfers
   - SQL Server → Parquet exports with dynamic table selection
   - Parquet → SQL Server imports with file browsing
   - Cascading dropdowns for database/schema/table navigation
   - Transfer history with success/failure tracking
   - Visual screenshot-based test documentation
+- **Console Application**: Multiple operation modes
+  - Interactive menu for profile selection
+  - Command-line arguments for automation (--profile, --config, --list-profiles)
+  - Backward compatible with legacy config files
 - **Multiple Partition Strategies**: Date, Integer Date, SCD2 (Slowly Changing Dimensions), and Static tables
 - **Apache Parquet Storage**: Industry-standard columnar format with Snappy compression
 - **Date-Based Partitioning**: Hive-compatible partitioning scheme (`year=YYYY/month=MM/day=DD/`)
@@ -19,7 +28,7 @@ A high-performance .NET 8 solution for transferring data between SQL Server inst
   - Docker support with 365MB optimized image
   - Comprehensive logging with Serilog (console and file outputs)
   - Robust error handling and recovery
-  - 131+ tests including Playwright E2E tests with visual documentation
+  - 144+ tests including profile service tests
 - **Configurable**: JSON-based configuration with validation
 - **High Performance**: SqlBulkCopy for fast loading, async/await throughout
 
@@ -148,18 +157,48 @@ Then navigate to `http://localhost:5000` to access the interactive UI featuring:
 
 ### Console Application (For Batch/Scheduled Operations)
 
-Run the console application:
+The console app supports three modes:
+
+#### 1. Interactive Mode (Menu-Driven)
 ```bash
 dotnet run --project src/DataTransfer.Console
 ```
 
+Provides an interactive menu with options to:
+- Load and execute saved profiles
+- Run from config file (legacy mode)
+- List all saved profiles
+- Exit
+
+#### 2. Profile-Based Execution (Recommended for Automation)
+```bash
+# Run a saved profile
+dotnet run --project src/DataTransfer.Console -- --profile "Daily Orders Extract"
+
+# List all available profiles
+dotnet run --project src/DataTransfer.Console -- --list-profiles
+```
+
+Profiles are shared with the Web UI and stored in `./profiles/profiles.json`. Create profiles using the Web UI, then execute them from the console for scheduled/automated transfers.
+
+#### 3. Config File Mode (Legacy)
+```bash
+# Run from traditional config file
+dotnet run --project src/DataTransfer.Console -- --config config/appsettings.json
+```
+
 The application will:
-1. Load and validate configuration from `config/appsettings.json`
+1. Load and validate configuration from the specified file
 2. Process each table defined in the configuration
 3. Extract data from source SQL Server
 4. Write to Parquet files with date-based partitioning
 5. Load data into destination SQL Server
 6. Display summary statistics
+
+#### Help
+```bash
+dotnet run --project src/DataTransfer.Console -- --help
+```
 
 ### Docker Execution
 
