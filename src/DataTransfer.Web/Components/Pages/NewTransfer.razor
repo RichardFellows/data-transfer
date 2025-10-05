@@ -157,7 +157,7 @@
                                 <div class="col-md-4">
                                     <label class="form-label">Table</label>
                                     <input id="tableSearch" type="text" @bind="_tableSearchText" @bind:event="oninput" class="form-control form-control-sm mb-1" placeholder="Search tables..." style="@(_availableTables.Any() ? "" : "display: none;")" title="Filter tables by name" />
-                                    <select id="table" @bind="_sourceTable" class="form-select" disabled="@(string.IsNullOrEmpty(_sourceSchema) || _isLoadingTables)" title="Select table or view to transfer">
+                                    <select id="table" @bind="_sourceTable" @bind:after="OnSourceTableChanged" class="form-select" disabled="@(string.IsNullOrEmpty(_sourceSchema) || _isLoadingTables)" title="Select table or view to transfer">
                                         <option value="">-- Select Table --</option>
                                         @foreach (var table in FilteredTables)
                                         {
@@ -181,6 +181,9 @@
                         }
                     </div>
                 </div>
+
+                @* Source Preview for SQL→Parquet *@
+                <DataTransfer.Web.Components.UI.DataPreview Preview="@_sourcePreview" />
             }
 
             @if (_config.TransferType == TransferType.ParquetToSql)
@@ -194,7 +197,7 @@
                             <label class="form-label">Parquet File</label>
                             <div class="d-flex gap-2 align-items-start">
                                 <div class="flex-grow-1">
-                                    <select id="parquetFile" @bind="_sourceParquetPath" class="form-select" title="Select Parquet file to import">
+                                    <select id="parquetFile" @bind="_sourceParquetPath" @bind:after="OnSourceParquetChanged" class="form-select" title="Select Parquet file to import">
                                         <option value="">-- Select Parquet File --</option>
                                         @foreach (var file in _availableParquetFiles)
                                         {
@@ -221,6 +224,9 @@
                         </div>
                     </div>
                 </div>
+
+                @* Source Preview for Parquet→SQL *@
+                <DataTransfer.Web.Components.UI.DataPreview Preview="@_sourcePreview" />
             }
 
             @if (_config.TransferType == TransferType.ParquetToSql)
@@ -482,6 +488,9 @@
     // Parquet file selection
     private List<ParquetFileInfo> _availableParquetFiles = new();
 
+    // Preview state
+    private DataPreview? _sourcePreview;
+
     // Destination cascading dropdown state
     private string _destSelectedPreset = "";
     private bool _isTestingDestConnection;
@@ -712,6 +721,7 @@
         _availableTables.Clear();
         _sourceTable = "";
         _tableSearchText = ""; // Clear search when schema changes
+        _sourcePreview = null; // Clear preview when schema changes
 
         if (string.IsNullOrEmpty(_sourceSchema))
             return;
@@ -729,6 +739,41 @@
         finally
         {
             _isLoadingTables = false;
+        }
+    }
+
+    private async Task OnSourceTableChanged()
+    {
+        _sourcePreview = null; // Clear previous preview
+
+        if (string.IsNullOrEmpty(_sourceTable) || string.IsNullOrEmpty(_sourceDatabase) || string.IsNullOrEmpty(_sourceSchema))
+            return;
+
+        try
+        {
+            _sourcePreview = await MetadataService.GetTablePreviewAsync(_sourceConnectionString, _sourceDatabase, _sourceSchema, _sourceTable);
+        }
+        catch (Exception ex)
+        {
+            _connectionTestMessage = $"✗ Error loading preview: {ex.Message}";
+        }
+    }
+
+    private async Task OnSourceParquetChanged()
+    {
+        _sourcePreview = null; // Clear previous preview
+
+        if (string.IsNullOrEmpty(_sourceParquetPath))
+            return;
+
+        try
+        {
+            _sourcePreview = await ParquetFileService.GetParquetPreviewAsync(_sourceParquetPath);
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't show to user as it's not critical
+            Console.WriteLine($"Error loading Parquet preview: {ex.Message}");
         }
     }
 
