@@ -6,13 +6,20 @@ namespace DataTransfer.Web.Tests;
 /// <summary>
 /// Base class for Playwright tests with screenshot capture functionality
 /// Screenshots are saved to test-results/screenshots with organized structure
+/// Automatically uses WebApplicationFixture to ensure server is running
 /// </summary>
 public abstract class PlaywrightTestBase : IAsyncLifetime
 {
     protected IPlaywright? _playwright;
     protected IBrowser? _browser;
-    protected const string BaseUrl = "http://localhost:5000";
+    protected readonly WebApplicationFixture _webFixture;
+    protected string BaseUrl => _webFixture.Url;
     protected static readonly string ScreenshotDirectory = Path.Combine("test-results", "screenshots");
+
+    protected PlaywrightTestBase(WebApplicationFixture webFixture)
+    {
+        _webFixture = webFixture;
+    }
 
     public async Task InitializeAsync()
     {

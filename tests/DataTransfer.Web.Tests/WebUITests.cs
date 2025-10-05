@@ -8,8 +8,12 @@ namespace DataTransfer.Web.Tests;
 /// Tests are designed to verify expected behavior and capture current state
 /// Screenshots are automatically saved for visual documentation
 /// </summary>
+[Collection("WebApplication")]
 public class WebUITests : PlaywrightTestBase
 {
+    public WebUITests(WebApplicationFixture webFixture) : base(webFixture)
+    {
+    }
 
     [Fact]
     public async Task HomePage_Should_Load_And_Display_Dashboard()

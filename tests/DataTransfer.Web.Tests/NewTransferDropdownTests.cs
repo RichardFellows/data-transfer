@@ -8,8 +8,12 @@ namespace DataTransfer.Web.Tests;
 /// Tests dynamic table selection functionality
 /// Screenshots are automatically saved for visual documentation
 /// </summary>
+[Collection("WebApplication")]
 public class NewTransferDropdownTests : PlaywrightTestBase
 {
+    public NewTransferDropdownTests(WebApplicationFixture webFixture) : base(webFixture)
+    {
+    }
 
     [Fact]
     public async Task NewTransfer_Should_Have_Connection_Preset_Dropdown()

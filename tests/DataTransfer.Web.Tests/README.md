@@ -9,11 +9,11 @@ End-to-end tests for the DataTransfer Blazor web interface using Playwright.
    playwright install chromium
    ```
 
-2. **Web Application**: The DataTransfer.Web app must be running on port 5000
-   ```bash
-   # In one terminal, start the web app:
-   dotnet run --project src/DataTransfer.Web --urls http://localhost:5000
-   ```
+2. **Web Application**: The test suite automatically starts/stops the web server
+   - `WebApplicationFixture` handles server lifecycle
+   - Server starts on port 5000 before tests run
+   - Server shuts down automatically after tests complete
+   - No manual server startup needed!
 
 3. **Optional - SQL Server**: For testing actual data transfers (not just UI)
    ```bash
@@ -77,14 +77,20 @@ These tests follow a "document-then-fix" approach:
 
 ## Troubleshooting
 
-**Test fails with "Target closed" or connection errors:**
-- Ensure web app is running on port 5000
-- Check firewall settings
-- Verify `http://localhost:5000` is accessible in browser
+**Port 5000 already in use:**
+- The `WebApplicationFixture` detects if port 5000 is in use
+- If a server is already running, it uses that instead of starting a new one
+- To use a fresh server, kill any existing processes on port 5000
 
 **Playwright browser not found:**
 - Run `playwright install chromium`
 - Verify PATH includes playwright
+
+**Tests timeout on dropdown selection:**
+- These are functional test failures, not infrastructure issues
+- Dropdowns require SQL Server with specific data
+- Run `./demo/run-bidirectional-demo.sh` to set up test databases
+- Or skip dropdown tests: `--filter "FullyQualifiedName!~Dropdown"`
 
 **Tests are flaky:**
 - Increase wait timeouts in test code

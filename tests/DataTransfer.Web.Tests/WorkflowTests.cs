@@ -7,8 +7,13 @@ namespace DataTransfer.Web.Tests;
 /// End-to-end workflow tests showing complete data transfer operations
 /// Captures screenshots at each step to document the process
 /// </summary>
+[Collection("WebApplication")]
 public class WorkflowTests : PlaywrightTestBase
 {
+    public WorkflowTests(WebApplicationFixture webFixture) : base(webFixture)
+    {
+    }
+
     [Fact]
     public async Task Workflow_SqlToParquet_Complete_Transfer()
     {
