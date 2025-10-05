@@ -94,6 +94,7 @@ IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'TestDestination')
     CREATE DATABASE TestDestination;
 GO
 
+-- ===== SEED TestSource (with data) =====
 USE TestSource;
 GO
 
@@ -128,6 +129,31 @@ BEGIN
 END
 GO
 
+-- ===== SEED TestDestination (empty tables for imports) =====
+USE TestDestination;
+GO
+
+-- Create schemas
+IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'sales')
+    EXEC('CREATE SCHEMA sales');
+IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'hr')
+    EXEC('CREATE SCHEMA hr');
+GO
+
+-- Create empty tables matching TestSource structure
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Customers' AND schema_id = SCHEMA_ID('dbo'))
+    CREATE TABLE dbo.Customers (Id INT PRIMARY KEY, Name NVARCHAR(100));
+
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Orders' AND schema_id = SCHEMA_ID('sales'))
+    CREATE TABLE sales.Orders (Id INT PRIMARY KEY, CustomerId INT, OrderDate DATE);
+
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Products' AND schema_id = SCHEMA_ID('sales'))
+    CREATE TABLE sales.Products (Id INT PRIMARY KEY, ProductName NVARCHAR(100), Price DECIMAL(10,2));
+
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Employees' AND schema_id = SCHEMA_ID('hr'))
+    CREATE TABLE hr.Employees (Id INT PRIMARY KEY, Name NVARCHAR(100), Department NVARCHAR(50));
+GO
+
 PRINT 'Database seeding complete';
 EOF
 
@@ -138,8 +164,8 @@ docker exec ${CONTAINER_NAME} /opt/mssql-tools18/bin/sqlcmd \
     -i /tmp/seed.sql
 
 echo -e "${GREEN}✓ Databases seeded:${NC}"
-echo "  - TestSource (with dbo.Customers, sales.Orders, sales.Products, hr.Employees)"
-echo "  - TestDestination (empty)"
+echo "  - TestSource (with data: dbo.Customers, sales.Orders, sales.Products, hr.Employees)"
+echo "  - TestDestination (empty tables ready for imports)"
 rm /tmp/seed-databases.sql
 echo ""
 
@@ -209,14 +235,17 @@ echo "  • SQL Server:  localhost:${SQL_PORT} (user: sa, password: ${SQL_PASSWO
 echo "  • Web Server:  http://localhost:${WEB_PORT}"
 echo ""
 echo -e "${GREEN}Test Databases:${NC}"
-echo "  • TestSource (with sample data)"
-echo "  • TestDestination (empty)"
+echo "  • TestSource (with sample data for export testing)"
+echo "  • TestDestination (empty tables for import testing)"
 echo ""
-echo -e "${GREEN}Available Tables in TestSource:${NC}"
+echo -e "${GREEN}Tables in TestSource (with data):${NC}"
 echo "  • dbo.Customers (3 rows)"
 echo "  • sales.Orders (2 rows)"
 echo "  • sales.Products (2 rows)"
 echo "  • hr.Employees (2 rows)"
+echo ""
+echo -e "${GREEN}Tables in TestDestination (empty):${NC}"
+echo "  • dbo.Customers, sales.Orders, sales.Products, hr.Employees (all empty)"
 echo ""
 echo -e "${YELLOW}You can now start manual testing!${NC}"
 echo "  Open browser: http://localhost:${WEB_PORT}"

@@ -27,14 +27,17 @@ Scripts for setting up and tearing down the manual testing environment.
 
 ### Test Data Created
 
-**TestSource Database:**
+**TestSource Database (for SQL→Parquet exports):**
 - `dbo.Customers` (3 rows)
 - `sales.Orders` (2 rows)
 - `sales.Products` (2 rows)
 - `hr.Employees` (2 rows)
 
-**TestDestination Database:**
-- Empty, ready for imports
+**TestDestination Database (for Parquet→SQL imports):**
+- `dbo.Customers` (empty, ready for imports)
+- `sales.Orders` (empty, ready for imports)
+- `sales.Products` (empty, ready for imports)
+- `hr.Employees` (empty, ready for imports)
 
 ## What `stop-manual-testing.sh` Does
 
