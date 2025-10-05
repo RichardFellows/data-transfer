@@ -89,4 +89,15 @@ public class ParquetFileService
     {
         return Path.Combine(_parquetDirectory, relativePath);
     }
+
+    /// <summary>
+    /// Gets preview data for a Parquet file (schema + 10 sample rows)
+    /// TODO: Implement in next GREEN phase
+    /// </summary>
+    public async Task<DataPreview> GetParquetPreviewAsync(string relativePath)
+    {
+        // Stub implementation - will be completed in next GREEN phase
+        await Task.CompletedTask;
+        return new DataPreview();
+    }
 }

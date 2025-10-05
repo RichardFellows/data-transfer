@@ -173,6 +173,34 @@ public class WebApplicationFixture : IAsyncLifetime
         await createSchemaCmd.ExecuteNonQueryAsync();
 
         Console.WriteLine("✓ Test schema seeded: dbo, sales, hr schemas with sample tables");
+
+        // Seed TestDestination with empty tables (matching structure)
+        await connection.ChangeDatabaseAsync("TestDestination");
+
+        await using var createDestSchemaCmd = connection.CreateCommand();
+        createDestSchemaCmd.CommandText = @"
+            -- Create schemas
+            IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'sales')
+                EXEC('CREATE SCHEMA sales');
+            IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'hr')
+                EXEC('CREATE SCHEMA hr');
+
+            -- Create empty tables matching TestSource structure
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Customers' AND schema_id = SCHEMA_ID('dbo'))
+                CREATE TABLE dbo.Customers (Id INT PRIMARY KEY, Name NVARCHAR(100));
+
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Orders' AND schema_id = SCHEMA_ID('sales'))
+                CREATE TABLE sales.Orders (Id INT PRIMARY KEY, CustomerId INT, OrderDate DATE);
+
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Products' AND schema_id = SCHEMA_ID('sales'))
+                CREATE TABLE sales.Products (Id INT PRIMARY KEY, ProductName NVARCHAR(100), Price DECIMAL(10,2));
+
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Employees' AND schema_id = SCHEMA_ID('hr'))
+                CREATE TABLE hr.Employees (Id INT PRIMARY KEY, Name NVARCHAR(100), Department NVARCHAR(50));
+        ";
+        await createDestSchemaCmd.ExecuteNonQueryAsync();
+
+        Console.WriteLine("✓ TestDestination seeded: empty tables ready for imports");
     }
 
     /// <summary>
