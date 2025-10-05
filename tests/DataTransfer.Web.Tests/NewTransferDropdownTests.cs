@@ -28,7 +28,8 @@ public class NewTransferDropdownTests : PlaywrightTestBase
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
             // Select SQL→Parquet to show SQL source section
-            await page.Locator("select").First.SelectOptionAsync("SqlToParquet");
+            // Note: First select is profileSelector, second is transfer type
+            await page.Locator("select").Nth(1).SelectOptionAsync("SqlToParquet");
             await page.WaitForTimeoutAsync(500);
 
             // Assert - Connection preset dropdown should exist
@@ -66,7 +67,7 @@ public class NewTransferDropdownTests : PlaywrightTestBase
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
             // Select SQL→Parquet
-            await page.Locator("select").First.SelectOptionAsync("SqlToParquet");
+            await page.Locator("select").Nth(1).SelectOptionAsync("SqlToParquet");
             await page.WaitForTimeoutAsync(500);
 
             // Select a connection preset (not Custom)
@@ -107,7 +108,7 @@ public class NewTransferDropdownTests : PlaywrightTestBase
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
             // Select SQL→Parquet
-            await page.Locator("select").First.SelectOptionAsync("SqlToParquet");
+            await page.Locator("select").Nth(1).SelectOptionAsync("SqlToParquet");
             await page.WaitForTimeoutAsync(500);
 
             // Try to find and interact with database dropdown
@@ -150,7 +151,7 @@ public class NewTransferDropdownTests : PlaywrightTestBase
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
             // Select SQL→Parquet
-            await page.Locator("select").First.SelectOptionAsync("SqlToParquet");
+            await page.Locator("select").Nth(1).SelectOptionAsync("SqlToParquet");
             await page.WaitForTimeoutAsync(500);
 
             // Try to find and interact with schema dropdown
@@ -193,7 +194,7 @@ public class NewTransferDropdownTests : PlaywrightTestBase
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
             // Select SQL→Parquet
-            await page.Locator("select").First.SelectOptionAsync("SqlToParquet");
+            await page.Locator("select").Nth(1).SelectOptionAsync("SqlToParquet");
             await page.WaitForTimeoutAsync(500);
 
             // Assert - Test connection button should be visible
@@ -222,7 +223,7 @@ public class NewTransferDropdownTests : PlaywrightTestBase
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
             // Select SQL→Parquet
-            await page.Locator("select").First.SelectOptionAsync("SqlToParquet");
+            await page.Locator("select").Nth(1).SelectOptionAsync("SqlToParquet");
             await page.WaitForTimeoutAsync(500);
 
             // Assert - Table search input element should exist in the page HTML (even if not visible initially)
@@ -253,7 +254,7 @@ public class NewTransferDropdownTests : PlaywrightTestBase
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
             // Select SQL→Parquet
-            await page.Locator("select").First.SelectOptionAsync("SqlToParquet");
+            await page.Locator("select").Nth(1).SelectOptionAsync("SqlToParquet");
             await page.WaitForTimeoutAsync(500);
 
             var searchInput = page.Locator("input#tableSearch");
@@ -295,7 +296,7 @@ public class NewTransferDropdownTests : PlaywrightTestBase
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
             // Select SQL→Parquet
-            await page.Locator("select").First.SelectOptionAsync("SqlToParquet");
+            await page.Locator("select").Nth(1).SelectOptionAsync("SqlToParquet");
             await page.WaitForTimeoutAsync(500);
 
             // Assert - Recent connections text or element should exist
