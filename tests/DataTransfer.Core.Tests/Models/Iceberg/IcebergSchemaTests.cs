@@ -283,9 +283,9 @@ public class IcebergTableMetadataTests
             WriteIndented = true
         });
 
-        // Assert
-        Assert.Contains("\"formatVersion\": 2", json);
-        Assert.Contains("\"tableUuid\"", json);
+        // Assert - Iceberg uses hyphenated property names
+        Assert.Contains("\"format-version\": 2", json);
+        Assert.Contains("\"table-uuid\"", json);
         Assert.Contains("\"location\"", json);
         Assert.Contains("\"schemas\"", json);
         Assert.Contains("\"snapshots\"", json);
@@ -328,9 +328,9 @@ public class IcebergSnapshotTests
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         });
 
-        // Assert
-        Assert.Contains("\"snapshotId\"", json);
-        Assert.Contains("\"timestampMs\"", json);
-        Assert.Contains("\"manifestList\"", json);
+        // Assert - Iceberg uses hyphenated property names
+        Assert.Contains("\"snapshot-id\"", json);
+        Assert.Contains("\"timestamp-ms\"", json);
+        Assert.Contains("\"manifest-list\"", json);
     }
 }
