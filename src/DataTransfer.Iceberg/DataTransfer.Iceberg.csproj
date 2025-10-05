@@ -8,7 +8,11 @@
 
   <ItemGroup>
     <PackageReference Include="Apache.Avro" Version="1.11.3" />
-    <PackageReference Include="ParquetSharp" Version="14.0.1" />
+    <PackageReference Include="ParquetSharp" Version="20.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DataTransfer.Core\DataTransfer.Core.csproj" />
   </ItemGroup>
 
 </Project>
