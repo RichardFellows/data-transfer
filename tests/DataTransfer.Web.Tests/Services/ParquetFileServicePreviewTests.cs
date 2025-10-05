@@ -2,6 +2,9 @@ using DataTransfer.Web.Services;
 using DataTransfer.Web.Models;
 using Xunit;
 using Microsoft.Extensions.Logging.Abstractions;
+using Parquet;
+using Parquet.Data;
+using Parquet.Schema;
 
 namespace DataTransfer.Web.Tests.Services;
 
@@ -128,22 +131,54 @@ public class ParquetFileServicePreviewTests
         Assert.Empty(preview.Rows);
     }
 
-    #region Helper Methods - TODO: Fix Parquet file creation
+    #region Helper Methods
 
     private async Task<string> CreateTestParquetFileAsync(string fileName)
     {
-        // TODO: Implement proper Parquet file creation
-        // For now, return empty path - tests will skip if file doesn't exist
-        await Task.CompletedTask;
-        return Path.Combine(TestParquetDirectory, fileName);
+        return await CreateTestParquetFileWithManyRowsAsync(fileName, 5);
     }
 
     private async Task<string> CreateTestParquetFileWithManyRowsAsync(string fileName, int rowCount)
     {
-        // TODO: Implement proper Parquet file creation using ParquetStorage
-        // For now, return empty path - tests will skip if file doesn't exist
-        await Task.CompletedTask;
-        return Path.Combine(TestParquetDirectory, fileName);
+        var fullPath = Path.Combine(TestParquetDirectory, fileName);
+
+        // Create sample data arrays
+        var ids = new int[rowCount];
+        var names = new string[rowCount];
+        var amounts = new decimal[rowCount];
+
+        for (int i = 0; i < rowCount; i++)
+        {
+            ids[i] = i + 1;
+            names[i] = $"Item {i + 1}";
+            amounts[i] = (i + 1) * 10.50m;
+        }
+
+        // Create schema
+        var schema = new ParquetSchema(
+            new DataField<int>("Id"),
+            new DataField<string>("Name"),
+            new DataField<decimal>("Amount")
+        );
+
+        // Write Parquet file
+        await using var fileStream = File.Create(fullPath);
+        using var writer = await ParquetWriter.CreateAsync(schema, fileStream);
+        using var groupWriter = writer.CreateRowGroup();
+
+        await groupWriter.WriteColumnAsync(new DataColumn(
+            schema.GetDataFields()[0],
+            ids));
+
+        await groupWriter.WriteColumnAsync(new DataColumn(
+            schema.GetDataFields()[1],
+            names));
+
+        await groupWriter.WriteColumnAsync(new DataColumn(
+            schema.GetDataFields()[2],
+            amounts));
+
+        return fullPath;
     }
 
     private class TestDataRow

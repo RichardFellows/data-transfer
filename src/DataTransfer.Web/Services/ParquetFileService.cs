@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using DataTransfer.Web.Models;
+using Parquet;
+using Parquet.Data;
 
 namespace DataTransfer.Web.Services;
 
@@ -92,12 +94,107 @@ public class ParquetFileService
 
     /// <summary>
     /// Gets preview data for a Parquet file (schema + 10 sample rows)
-    /// TODO: Implement in next GREEN phase
     /// </summary>
     public async Task<DataPreview> GetParquetPreviewAsync(string relativePath)
     {
-        // Stub implementation - will be completed in next GREEN phase
-        await Task.CompletedTask;
-        return new DataPreview();
+        var preview = new DataPreview();
+        var fullPath = GetFullPath(relativePath);
+
+        if (!File.Exists(fullPath))
+        {
+            _logger.LogWarning("Parquet file not found: {Path}", fullPath);
+            return preview;
+        }
+
+        // Local function to convert Parquet field type to display string
+        string GetParquetDataType(dynamic field)
+        {
+            var clrType = field.ClrType;
+            var typeName = clrType.Name;
+
+            // Handle nullable types
+            if (clrType.IsGenericType && clrType.GetGenericTypeDefinition() == typeof(Nullable<>))
+            {
+                typeName = Nullable.GetUnderlyingType(clrType)?.Name ?? typeName;
+            }
+
+            // Simplify type names for display
+            return typeName switch
+            {
+                "Int32" => "INT",
+                "Int64" => "BIGINT",
+                "String" => "STRING",
+                "Boolean" => "BOOLEAN",
+                "Decimal" => "DECIMAL",
+                "Double" => "DOUBLE",
+                "Single" => "FLOAT",
+                "DateTime" => "DATETIME",
+                "DateTimeOffset" => "DATETIMEOFFSET",
+                "Byte[]" => "BINARY",
+                _ => typeName.ToUpper()
+            };
+        }
+
+        try
+        {
+            await using var fileStream = File.OpenRead(fullPath);
+            using var parquetReader = await ParquetReader.CreateAsync(fileStream);
+
+            var schema = parquetReader.Schema;
+            var dataFields = schema.GetDataFields();
+
+            // Get column information
+            foreach (var field in dataFields)
+            {
+                preview.Columns.Add(new ColumnInfo
+                {
+                    Name = field.Name,
+                    DataType = GetParquetDataType(field),
+                    IsNullable = field.IsNullable
+                });
+            }
+
+            // Read first row group only (for preview)
+            if (parquetReader.RowGroupCount > 0)
+            {
+                using var rowGroupReader = parquetReader.OpenRowGroupReader(0);
+                var rowCount = Math.Min((int)rowGroupReader.RowCount, 10); // Max 10 rows
+
+                // Read all columns
+                var columnData = new Dictionary<string, Array>();
+                foreach (var field in dataFields)
+                {
+                    var column = await rowGroupReader.ReadColumnAsync(field);
+                    columnData[field.Name] = column.Data;
+                }
+
+                // Convert to rows
+                for (int i = 0; i < rowCount; i++)
+                {
+                    var row = new Dictionary<string, object?>();
+                    foreach (var field in dataFields)
+                    {
+                        var array = columnData[field.Name];
+                        var value = array.GetValue(i);
+                        row[field.Name] = value;
+                    }
+                    preview.Rows.Add(row);
+                }
+
+                // Get total row count (sum of all row groups)
+                preview.TotalRowCount = 0;
+                for (int i = 0; i < parquetReader.RowGroupCount; i++)
+                {
+                    using var rg = parquetReader.OpenRowGroupReader(i);
+                    preview.TotalRowCount += rg.RowCount;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error reading Parquet file preview: {Path}", fullPath);
+        }
+
+        return preview;
     }
 }

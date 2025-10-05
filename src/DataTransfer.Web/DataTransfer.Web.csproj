@@ -9,6 +9,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Parquet.Net" Version="5.2.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
   </ItemGroup>
 
