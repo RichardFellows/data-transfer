@@ -116,6 +116,7 @@ public class ParquetFileServicePreviewTests
         Assert.NotNull(preview);
         Assert.NotEmpty(preview.Columns); // Schema should still be present
         Assert.Empty(preview.Rows);
+        Assert.NotNull(preview.TotalRowCount);
         Assert.Equal(0, preview.TotalRowCount.Value);
     }
 
