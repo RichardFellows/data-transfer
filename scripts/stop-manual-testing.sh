@@ -37,15 +37,15 @@ else
 fi
 echo ""
 
-# Restore appsettings.json
-echo -e "${YELLOW}[3/3] Restoring configuration...${NC}"
-APPSETTINGS_FILE="${PROJECT_ROOT}/${WEB_PROJECT}/appsettings.json"
-if [ -f "${APPSETTINGS_FILE}.backup" ]; then
-    cp "${APPSETTINGS_FILE}.backup" "${APPSETTINGS_FILE}"
-    echo -e "${GREEN}✓ Configuration restored from backup${NC}"
-else
-    echo "No backup found to restore"
+# Clean up
+echo -e "${YELLOW}[3/3] Cleaning up...${NC}"
+# Remove old backups if they exist (no longer needed with env var approach)
+APPSETTINGS_BACKUP="${PROJECT_ROOT}/${WEB_PROJECT}/appsettings.json.backup"
+if [ -f "${APPSETTINGS_BACKUP}" ]; then
+    rm "${APPSETTINGS_BACKUP}"
+    echo "Removed old appsettings backup"
 fi
+echo -e "${GREEN}✓ Cleanup complete${NC}"
 echo ""
 
 echo -e "${GREEN}✓ Environment stopped${NC}"

@@ -143,32 +143,15 @@ echo "  - TestDestination (empty)"
 rm /tmp/seed-databases.sql
 echo ""
 
-# Step 5: Update appsettings.json with connection string
+# Step 5: Configure connection string (via environment variable)
 echo -e "${YELLOW}[5/6] Configuring web application...${NC}"
 
-APPSETTINGS_FILE="${PROJECT_ROOT}/${WEB_PROJECT}/appsettings.json"
 CONNECTION_STRING="Server=localhost,${SQL_PORT};Database=master;User Id=sa;Password=${SQL_PASSWORD};TrustServerCertificate=True"
 
-# Backup original if it doesn't exist
-if [ ! -f "${APPSETTINGS_FILE}.backup" ]; then
-    cp "${APPSETTINGS_FILE}" "${APPSETTINGS_FILE}.backup"
-    echo "Created backup: appsettings.json.backup"
-fi
+# ASP.NET Core reads env vars with __ separator for nested config
+export ConnectionStrings__LocalDemo="${CONNECTION_STRING}"
 
-# Update connection string using jq or sed
-if command -v jq > /dev/null 2>&1; then
-    # Use jq for proper JSON manipulation
-    jq --arg cs "${CONNECTION_STRING}" \
-        '.ConnectionStrings.LocalDemo = $cs' \
-        "${APPSETTINGS_FILE}" > "${APPSETTINGS_FILE}.tmp"
-    mv "${APPSETTINGS_FILE}.tmp" "${APPSETTINGS_FILE}"
-else
-    # Fallback: simple sed replacement (less robust)
-    sed -i.tmp "s|\"LocalDemo\":.*|\"LocalDemo\": \"${CONNECTION_STRING}\"|" "${APPSETTINGS_FILE}"
-    rm -f "${APPSETTINGS_FILE}.tmp"
-fi
-
-echo -e "${GREEN}✓ Connection string configured${NC}"
+echo -e "${GREEN}✓ Connection string configured (via environment variable)${NC}"
 echo ""
 
 # Step 6: Start web server
@@ -183,8 +166,9 @@ fi
 
 cd "${PROJECT_ROOT}"
 
-# Start web server in background
-nohup dotnet run --project ${WEB_PROJECT} --urls http://localhost:${WEB_PORT} \
+# Start web server in background with environment variable
+nohup env ConnectionStrings__LocalDemo="${CONNECTION_STRING}" \
+    dotnet run --project ${WEB_PROJECT} --urls http://localhost:${WEB_PORT} \
     > /tmp/datatransfer-web.log 2>&1 &
 
 WEB_PID=$!
