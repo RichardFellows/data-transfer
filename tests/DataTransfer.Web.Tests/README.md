@@ -9,17 +9,19 @@ End-to-end tests for the DataTransfer Blazor web interface using Playwright.
    playwright install chromium
    ```
 
-2. **Web Application**: The test suite automatically starts/stops the web server
+2. **SQL Server**: The test suite automatically starts/stops SQL Server via TestContainers
+   - `WebApplicationFixture` starts SQL Server 2022 container (~10s startup)
+   - Seeds test databases: TestSource, TestDestination
+   - Creates schemas (dbo, sales, hr) with sample tables
+   - Uses Respawn for fast database state reset between tests
+   - Container shared across all tests for optimal performance
+   - No manual SQL Server setup needed!
+
+3. **Web Application**: The test suite automatically starts/stops the web server
    - `WebApplicationFixture` handles server lifecycle
    - Server starts on port 5000 before tests run
    - Server shuts down automatically after tests complete
    - No manual server startup needed!
-
-3. **Optional - SQL Server**: For testing actual data transfers (not just UI)
-   ```bash
-   ./demo/run-bidirectional-demo.sh
-   # This sets up Docker SQL Server with test databases
-   ```
 
 ## Running the Tests
 
@@ -77,20 +79,29 @@ These tests follow a "document-then-fix" approach:
 
 ## Troubleshooting
 
+**Docker not available:**
+- TestContainers requires Docker Desktop running
+- Verify Docker is running: `docker ps`
+- On WSL2: Ensure Docker Desktop integration is enabled
+
 **Port 5000 already in use:**
 - The `WebApplicationFixture` detects if port 5000 is in use
 - If a server is already running, it uses that instead of starting a new one
 - To use a fresh server, kill any existing processes on port 5000
+
+**SQL Server container slow to start:**
+- First test run takes ~10-15s to download SQL Server image
+- Subsequent runs use cached image (~10s startup)
+- Container is shared across all tests for performance
 
 **Playwright browser not found:**
 - Run `playwright install chromium`
 - Verify PATH includes playwright
 
 **Tests timeout on dropdown selection:**
-- These are functional test failures, not infrastructure issues
-- Dropdowns require SQL Server with specific data
-- Run `./demo/run-bidirectional-demo.sh` to set up test databases
-- Or skip dropdown tests: `--filter "FullyQualifiedName!~Dropdown"`
+- These are UI/selector test issues, not infrastructure problems
+- TestContainers provides working SQL Server with test data
+- Check selector values match current UI implementation
 
 **Tests are flaky:**
 - Increase wait timeouts in test code
