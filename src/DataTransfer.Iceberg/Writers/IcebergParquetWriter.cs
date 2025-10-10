@@ -228,28 +228,68 @@ public class IcebergParquetWriter : IDisposable
             switch (primitiveType)
             {
                 case "boolean":
-                    var boolWriter = columnWriter.LogicalWriter<bool>();
-                    boolWriter.WriteBatch(values.Select(v => v != null ? Convert.ToBoolean(v) : false).ToArray());
+                    if (field.Required)
+                    {
+                        var boolWriter = columnWriter.LogicalWriter<bool>();
+                        boolWriter.WriteBatch(values.Select(v => Convert.ToBoolean(v)).ToArray());
+                    }
+                    else
+                    {
+                        var nullableBoolWriter = columnWriter.LogicalWriter<bool?>();
+                        nullableBoolWriter.WriteBatch(values.Select(v => v != null ? Convert.ToBoolean(v) : (bool?)null).ToArray());
+                    }
                     break;
 
                 case "int":
-                    var intWriter = columnWriter.LogicalWriter<int>();
-                    intWriter.WriteBatch(values.Select(v => v != null ? Convert.ToInt32(v) : 0).ToArray());
+                    if (field.Required)
+                    {
+                        var intWriter = columnWriter.LogicalWriter<int>();
+                        intWriter.WriteBatch(values.Select(v => Convert.ToInt32(v)).ToArray());
+                    }
+                    else
+                    {
+                        var nullableIntWriter = columnWriter.LogicalWriter<int?>();
+                        nullableIntWriter.WriteBatch(values.Select(v => v != null ? Convert.ToInt32(v) : (int?)null).ToArray());
+                    }
                     break;
 
                 case "long":
-                    var longWriter = columnWriter.LogicalWriter<long>();
-                    longWriter.WriteBatch(values.Select(v => v != null ? Convert.ToInt64(v) : 0L).ToArray());
+                    if (field.Required)
+                    {
+                        var longWriter = columnWriter.LogicalWriter<long>();
+                        longWriter.WriteBatch(values.Select(v => Convert.ToInt64(v)).ToArray());
+                    }
+                    else
+                    {
+                        var nullableLongWriter = columnWriter.LogicalWriter<long?>();
+                        nullableLongWriter.WriteBatch(values.Select(v => v != null ? Convert.ToInt64(v) : (long?)null).ToArray());
+                    }
                     break;
 
                 case "float":
-                    var floatWriter = columnWriter.LogicalWriter<float>();
-                    floatWriter.WriteBatch(values.Select(v => v != null ? Convert.ToSingle(v) : 0f).ToArray());
+                    if (field.Required)
+                    {
+                        var floatWriter = columnWriter.LogicalWriter<float>();
+                        floatWriter.WriteBatch(values.Select(v => Convert.ToSingle(v)).ToArray());
+                    }
+                    else
+                    {
+                        var nullableFloatWriter = columnWriter.LogicalWriter<float?>();
+                        nullableFloatWriter.WriteBatch(values.Select(v => v != null ? Convert.ToSingle(v) : (float?)null).ToArray());
+                    }
                     break;
 
                 case "double":
-                    var doubleWriter = columnWriter.LogicalWriter<double>();
-                    doubleWriter.WriteBatch(values.Select(v => v != null ? Convert.ToDouble(v) : 0.0).ToArray());
+                    if (field.Required)
+                    {
+                        var doubleWriter = columnWriter.LogicalWriter<double>();
+                        doubleWriter.WriteBatch(values.Select(v => Convert.ToDouble(v)).ToArray());
+                    }
+                    else
+                    {
+                        var nullableDoubleWriter = columnWriter.LogicalWriter<double?>();
+                        nullableDoubleWriter.WriteBatch(values.Select(v => v != null ? Convert.ToDouble(v) : (double?)null).ToArray());
+                    }
                     break;
 
                 case "date":
