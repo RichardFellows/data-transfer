@@ -269,8 +269,8 @@ public class FilesystemCatalogTests : IDisposable
         var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        // Act & Assert
-        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+        // Act & Assert - TaskCanceledException is a subclass of OperationCanceledException
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
         {
             await _catalog.CommitAsync("cancel_test", metadata, cts.Token);
         });
@@ -287,10 +287,12 @@ public class FilesystemCatalogTests : IDisposable
     }
 
     [Fact]
-    public void Should_Check_Table_Exists()
+    public async Task Should_Check_Table_Exists()
     {
         // Arrange
         _catalog.InitializeTable("existing_table");
+        var metadata = CreateTestMetadata();
+        await _catalog.CommitAsync("existing_table", metadata);
 
         // Act & Assert
         Assert.True(_catalog.TableExists("existing_table"));
