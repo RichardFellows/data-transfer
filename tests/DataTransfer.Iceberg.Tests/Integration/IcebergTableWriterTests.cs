@@ -49,7 +49,7 @@ public class IcebergTableWriterTests : IDisposable
         var result = await writer.WriteTableAsync("test_table", schema, data);
 
         // Assert
-        Assert.True(result.Success);
+        Assert.True(result.Success, $"Write failed: {result.ErrorMessage}");
         Assert.True(_catalog.TableExists("test_table"));
     }
 

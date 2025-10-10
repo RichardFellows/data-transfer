@@ -15,6 +15,8 @@ public class IcebergParquetWriter : IDisposable
     private readonly IcebergSchema _schema;
     private readonly string _filePath;
     private long _recordCount;
+    private readonly List<object[]> _buffer;
+    private const int DefaultBufferSize = 1000; // Rows to buffer before writing
 
     /// <summary>
     /// Creates a new Iceberg-compliant Parquet writer
@@ -26,6 +28,7 @@ public class IcebergParquetWriter : IDisposable
         _schema = schema;
         _filePath = path;
         _recordCount = 0;
+        _buffer = new List<object[]>();
 
         // CRITICAL: Use GroupNode to embed field-id metadata
         var groupNode = BuildIcebergCompliantSchema(schema);
@@ -162,7 +165,7 @@ public class IcebergParquetWriter : IDisposable
 
     /// <summary>
     /// Writes a single row of data to the Parquet file
-    /// Note: Simplified implementation - full row writing will be implemented when needed
+    /// Buffers rows and flushes when buffer is full
     /// </summary>
     /// <param name="values">Array of values matching schema field order</param>
     public void WriteRow(object[] values)
@@ -173,16 +176,146 @@ public class IcebergParquetWriter : IDisposable
                 $"Value count ({values.Length}) does not match schema field count ({_schema.Fields.Count})");
         }
 
-        // TODO: Implement actual row writing using ParquetSharp's column-oriented API
-        // For now, just track the record count
+        _buffer.Add(values);
         _recordCount++;
+
+        // Flush buffer when it reaches the threshold
+        if (_buffer.Count >= DefaultBufferSize)
+        {
+            FlushBuffer();
+        }
+    }
+
+    /// <summary>
+    /// Flushes buffered rows to Parquet file as a row group
+    /// </summary>
+    private void FlushBuffer()
+    {
+        if (_buffer.Count == 0)
+            return;
+
+        using var rowGroup = _writer.AppendRowGroup();
+
+        // Write each column's data
+        for (int colIndex = 0; colIndex < _schema.Fields.Count; colIndex++)
+        {
+            var field = _schema.Fields[colIndex];
+            using var columnWriter = rowGroup.NextColumn();
+
+            // Extract column values from all buffered rows
+            var columnValues = new object[_buffer.Count];
+            for (int rowIndex = 0; rowIndex < _buffer.Count; rowIndex++)
+            {
+                columnValues[rowIndex] = _buffer[rowIndex][colIndex];
+            }
+
+            // Write column data based on type
+            WriteColumnBatch(columnWriter, field, columnValues);
+        }
+
+        _buffer.Clear();
+    }
+
+    /// <summary>
+    /// Writes a batch of values for a single column
+    /// </summary>
+    private void WriteColumnBatch(ColumnWriter columnWriter, IcebergField field, object[] values)
+    {
+        var fieldType = field.Type;
+
+        if (fieldType is string primitiveType)
+        {
+            switch (primitiveType)
+            {
+                case "boolean":
+                    var boolWriter = columnWriter.LogicalWriter<bool>();
+                    boolWriter.WriteBatch(values.Select(v => v != null ? Convert.ToBoolean(v) : false).ToArray());
+                    break;
+
+                case "int":
+                    var intWriter = columnWriter.LogicalWriter<int>();
+                    intWriter.WriteBatch(values.Select(v => v != null ? Convert.ToInt32(v) : 0).ToArray());
+                    break;
+
+                case "long":
+                    var longWriter = columnWriter.LogicalWriter<long>();
+                    longWriter.WriteBatch(values.Select(v => v != null ? Convert.ToInt64(v) : 0L).ToArray());
+                    break;
+
+                case "float":
+                    var floatWriter = columnWriter.LogicalWriter<float>();
+                    floatWriter.WriteBatch(values.Select(v => v != null ? Convert.ToSingle(v) : 0f).ToArray());
+                    break;
+
+                case "double":
+                    var doubleWriter = columnWriter.LogicalWriter<double>();
+                    doubleWriter.WriteBatch(values.Select(v => v != null ? Convert.ToDouble(v) : 0.0).ToArray());
+                    break;
+
+                case "date":
+                    var dateWriter = columnWriter.LogicalWriter<int>();
+                    var dates = values.Select(v =>
+                    {
+                        if (v == null) return 0;
+                        var dt = v is DateTime dateTime ? dateTime : Convert.ToDateTime(v);
+                        return (int)(dt.Date - new DateTime(1970, 1, 1)).TotalDays;
+                    }).ToArray();
+                    dateWriter.WriteBatch(dates);
+                    break;
+
+                case "timestamp":
+                case "timestamptz":
+                    var timestampWriter = columnWriter.LogicalWriter<DateTime>();
+                    var timestamps = values.Select(v =>
+                    {
+                        if (v == null) return DateTime.MinValue;
+                        if (v is DateTime dt) return dt.ToUniversalTime();
+                        if (v is DateTimeOffset dto) return dto.UtcDateTime;
+                        return Convert.ToDateTime(v).ToUniversalTime();
+                    }).ToArray();
+                    timestampWriter.WriteBatch(timestamps);
+                    break;
+
+                case "string":
+                    var stringWriter = columnWriter.LogicalWriter<string>();
+                    stringWriter.WriteBatch(values.Select(v => v?.ToString() ?? string.Empty).ToArray());
+                    break;
+
+                case "binary":
+                    var binaryWriter = columnWriter.LogicalWriter<byte[]>();
+                    binaryWriter.WriteBatch(values.Select(v => v as byte[] ?? Array.Empty<byte>()).ToArray());
+                    break;
+
+                case "uuid":
+                    var uuidWriter = columnWriter.LogicalWriter<byte[]>();
+                    var uuids = values.Select(v =>
+                    {
+                        if (v == null) return new byte[16];
+                        return v is Guid guid ? guid.ToByteArray() : Guid.Empty.ToByteArray();
+                    }).ToArray();
+                    uuidWriter.WriteBatch(uuids);
+                    break;
+
+                default:
+                    throw new NotSupportedException($"Writing values of type {primitiveType} is not yet supported");
+            }
+        }
+        else
+        {
+            // Handle complex types like decimal
+            throw new NotSupportedException($"Writing complex types is not yet supported");
+        }
     }
 
     /// <summary>
     /// Closes the writer and returns file metadata for manifest generation
+    /// Flushes any remaining buffered data before closing
     /// </summary>
     public DataFileMetadata Close()
     {
+        // Flush any remaining buffered data
+        FlushBuffer();
+
         _writer.Close();
 
         var fileInfo = new FileInfo(_filePath);
