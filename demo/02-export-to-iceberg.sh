@@ -15,7 +15,14 @@ NC='\033[0m' # No Color
 
 # Configuration
 WAREHOUSE_PATH="${ICEBERG_WAREHOUSE:-/tmp/iceberg-demo-warehouse}"
-CONNECTION_STRING="${SQL_CONNECTION_STRING:-Server=(localdb)\\mssqllocaldb;Database=IcebergDemo_Source;Integrated Security=true;TrustServerCertificate=true}"
+
+# Check if Docker SQL Server connection details are available
+if [ -f /tmp/sqlserver-demo-connection.env ]; then
+    source /tmp/sqlserver-demo-connection.env
+    CONNECTION_STRING="${SQL_CONNECTION_STRING};Database=IcebergDemo_Source"
+else
+    CONNECTION_STRING="${SQL_CONNECTION_STRING:-Server=(localdb)\\mssqllocaldb;Database=IcebergDemo_Source;Integrated Security=true;TrustServerCertificate=true}"
+fi
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}SQL Server to Iceberg Export Demo${NC}"
@@ -103,19 +110,34 @@ catch (Exception ex)
 }
 EOF
 
-# Check if SQL Server is available
-if command -v sqlcmd &> /dev/null; then
-    echo -e "${BLUE}Testing SQL Server connection...${NC}"
-    if sqlcmd -S "(localdb)\\mssqllocaldb" -Q "SELECT 1" -b &> /dev/null; then
-        echo -e "${GREEN}✓ SQL Server is available${NC}"
+# Check if SQL Server is available (Docker or LocalDB)
+SQL_SERVER_AVAILABLE=false
+
+# First check for Docker container
+if [ -f /tmp/sqlserver-demo-connection.env ]; then
+    source /tmp/sqlserver-demo-connection.env
+    if docker ps --format '{{.Names}}' | grep -q "^${SQL_CONTAINER_NAME}$"; then
+        echo -e "${GREEN}✓ Using SQL Server Docker container: $SQL_CONTAINER_NAME${NC}"
         SQL_SERVER_AVAILABLE=true
+    fi
+fi
+
+# Fallback to sqlcmd check
+if [ "$SQL_SERVER_AVAILABLE" = false ]; then
+    if command -v sqlcmd &> /dev/null; then
+        echo -e "${BLUE}Testing SQL Server connection...${NC}"
+        if sqlcmd -S "(localdb)\\mssqllocaldb" -Q "SELECT 1" -b &> /dev/null; then
+            echo -e "${GREEN}✓ SQL Server is available${NC}"
+            SQL_SERVER_AVAILABLE=true
+        else
+            echo -e "${YELLOW}⚠️  SQL Server not available${NC}"
+            SQL_SERVER_AVAILABLE=false
+        fi
     else
-        echo -e "${YELLOW}⚠️  SQL Server LocalDB not available${NC}"
+        echo -e "${YELLOW}⚠️  sqlcmd not found${NC}"
+        echo -e "${YELLOW}Tip: Run ./demo/00-setup-sqlserver-docker.sh to use SQL Server in Docker${NC}"
         SQL_SERVER_AVAILABLE=false
     fi
-else
-    echo -e "${YELLOW}⚠️  sqlcmd not found${NC}"
-    SQL_SERVER_AVAILABLE=false
 fi
 echo ""
 

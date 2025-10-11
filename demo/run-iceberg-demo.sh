@@ -49,16 +49,37 @@ case $choice in
         echo -e "${BLUE}========================================${NC}"
         echo ""
 
-        # Step 1: Setup databases (requires SQL Server)
-        if command -v sqlcmd &> /dev/null; then
-            echo -e "${BLUE}Step 1: Setting up demo databases...${NC}"
+        # Step 0: Setup SQL Server in Docker
+        echo -e "${BLUE}Step 0: Setting up SQL Server in Docker...${NC}"
+        "$SCRIPT_DIR/00-setup-sqlserver-docker.sh"
+        echo ""
+
+        # Load connection details
+        if [ -f /tmp/sqlserver-demo-connection.env ]; then
+            source /tmp/sqlserver-demo-connection.env
+        fi
+
+        # Step 1: Setup databases
+        echo -e "${BLUE}Step 1: Setting up demo databases...${NC}"
+        if [ -n "$SQL_CONTAINER_NAME" ] && docker ps --format '{{.Names}}' | grep -q "^${SQL_CONTAINER_NAME}$"; then
+            # Use Docker container
+            docker exec "$SQL_CONTAINER_NAME" /opt/mssql-tools/bin/sqlcmd \
+                -S localhost -U sa -P "$SQL_SERVER_PASSWORD" \
+                -i /host/demo/01-setup-demo-databases.sql -b 2>&1 || \
+            docker cp "$SCRIPT_DIR/01-setup-demo-databases.sql" "$SQL_CONTAINER_NAME:/tmp/setup.sql" && \
+            docker exec "$SQL_CONTAINER_NAME" /opt/mssql-tools/bin/sqlcmd \
+                -S localhost -U sa -P "$SQL_SERVER_PASSWORD" \
+                -i /tmp/setup.sql -b
+            echo -e "${GREEN}✓ Demo databases created${NC}"
+        elif command -v sqlcmd &> /dev/null; then
+            # Use local sqlcmd
             if sqlcmd -S "(localdb)\\mssqllocaldb" -i "$SCRIPT_DIR/01-setup-demo-databases.sql" -b; then
                 echo -e "${GREEN}✓ Demo databases created${NC}"
             else
-                echo -e "${YELLOW}⚠️  SQL Server not available - skipping database setup${NC}"
+                echo -e "${YELLOW}⚠️  SQL Server not available - will use sample data${NC}"
             fi
         else
-            echo -e "${YELLOW}⚠️  sqlcmd not found - skipping SQL Server setup${NC}"
+            echo -e "${YELLOW}⚠️  SQL Server not available - will use sample data${NC}"
         fi
         echo ""
 
@@ -152,7 +173,18 @@ case $choice in
         rm -f /tmp/iceberg-export-demo.cs
         rm -f /tmp/create-orders-table.cs
 
-        # Drop SQL Server databases (if available)
+        # Remove Docker container (if exists)
+        if [ -f /tmp/sqlserver-demo-connection.env ]; then
+            source /tmp/sqlserver-demo-connection.env
+            if docker ps -a --format '{{.Names}}' | grep -q "^${SQL_CONTAINER_NAME}$"; then
+                echo -e "${YELLOW}Removing SQL Server Docker container...${NC}"
+                docker rm -f "$SQL_CONTAINER_NAME" 2>/dev/null || true
+                echo -e "${GREEN}✓ Removed container: $SQL_CONTAINER_NAME${NC}"
+            fi
+            rm -f /tmp/sqlserver-demo-connection.env
+        fi
+
+        # Drop SQL Server databases (if available via sqlcmd)
         if command -v sqlcmd &> /dev/null; then
             sqlcmd -S "(localdb)\\mssqllocaldb" -Q "
                 IF EXISTS (SELECT name FROM sys.databases WHERE name = 'IcebergDemo_Source')
