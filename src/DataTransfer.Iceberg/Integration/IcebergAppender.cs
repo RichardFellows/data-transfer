@@ -218,14 +218,19 @@ public class IcebergAppender
         // 2. Read existing manifest entries
         var allManifests = new List<(string Path, long Size, int AddedCount)>();
 
+        _logger.LogDebug("[APPENDER] Previous manifest list path: {Path}, Exists: {Exists}",
+            previousManifestListPath, File.Exists(previousManifestListPath));
+
         if (File.Exists(previousManifestListPath))
         {
             var previousManifests = generator.ReadManifestList(previousManifestListPath);
+            _logger.LogDebug("[APPENDER] Found {Count} previous manifests to carry forward", previousManifests.Count);
 
             // Carry forward previous manifests with existing_files_count instead of added_files_count
             foreach (var (path, size, _) in previousManifests)
             {
                 allManifests.Add((path, size, 0)); // 0 added, all are existing
+                _logger.LogDebug("[APPENDER]   Carrying forward: {Path}, Size: {Size}, Added: 0 (existing)", path, size);
             }
         }
 
@@ -233,8 +238,12 @@ public class IcebergAppender
         var newManifestFullPath = Path.Combine(tablePath, newManifestRelativePath);
         var newManifestSize = new FileInfo(newManifestFullPath).Length;
         allManifests.Add((newManifestRelativePath, newManifestSize, addedFilesCount));
+        _logger.LogDebug("[APPENDER] Added new manifest: {Path}, Size: {Size}, Added: {Count}",
+            newManifestRelativePath, newManifestSize, addedFilesCount);
 
         // 4. Write accumulated manifest list
+        _logger.LogInformation("[APPENDER] Writing manifest list with {Count} total manifests to {Path}",
+            allManifests.Count, manifestListPath);
         generator.WriteManifestList(manifestListPath, allManifests);
 
         return $"metadata/{manifestListFileName}";  // Return relative path

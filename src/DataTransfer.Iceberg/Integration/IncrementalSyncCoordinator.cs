@@ -106,14 +106,21 @@ public class IncrementalSyncCoordinator
 
             _logger.LogInformation("Appended to Iceberg, snapshot: {Snapshot}", appendResult.NewSnapshotId);
 
-            // 4. Read from Iceberg
-            var data = _reader.ReadTableAsync(icebergTable, cancellationToken);
-
-            // 5. Import to target
+            // 4. Import changes to target
+            // Note: Import the extracted changes directly, not the entire Iceberg table
+            // Iceberg serves as an audit log, not the source for import
             var mergeStrategy = CreateMergeStrategy(options);
-            var importResult = await _importer.ImportAsync(data, targetConnection, targetTable, mergeStrategy, cancellationToken);
 
-            _logger.LogInformation("Imported {Count} rows to target", importResult.RowsImported);
+            _logger.LogInformation("[COORDINATOR] Importing {Count} extracted changes to {Table}", changes.Count, targetTable);
+
+            var importResult = await _importer.ImportAsync(
+                ToAsyncEnumerable(changes),
+                targetConnection,
+                targetTable,
+                mergeStrategy,
+                cancellationToken);
+
+            _logger.LogInformation("[COORDINATOR] ImportAsync completed - RowsImported: {Count}", importResult.RowsImported);
 
             // 6. Update watermark
             var newWatermark = new Watermark
@@ -264,5 +271,15 @@ public class IncrementalSyncCoordinator
             byte[] => "binary",
             _ => "string"
         };
+    }
+
+    private async IAsyncEnumerable<Dictionary<string, object>> ToAsyncEnumerable(
+        List<Dictionary<string, object>> data)
+    {
+        foreach (var item in data)
+        {
+            yield return item;
+        }
+        await Task.CompletedTask; // Satisfy async requirement
     }
 }

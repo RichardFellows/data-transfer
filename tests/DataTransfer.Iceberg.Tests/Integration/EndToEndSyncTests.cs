@@ -5,8 +5,10 @@ using DataTransfer.Iceberg.Models;
 using DataTransfer.Iceberg.Readers;
 using DataTransfer.Iceberg.Watermarks;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace DataTransfer.Iceberg.Tests.Integration;
 
@@ -21,14 +23,24 @@ public class EndToEndSyncTests : IDisposable
     private readonly string _targetDatabase;
     private readonly string _warehousePath;
     private readonly string _watermarkPath;
+    private readonly ITestOutputHelper _output;
+    private readonly ILoggerFactory _loggerFactory;
 
-    public EndToEndSyncTests()
+    public EndToEndSyncTests(ITestOutputHelper output)
     {
+        _output = output;
         _connectionString = "Server=localhost;User Id=sa;Password=IcebergDemo@2024;TrustServerCertificate=true;";
         _sourceDatabase = $"E2ESourceDb_{Guid.NewGuid():N}";
         _targetDatabase = $"E2ETargetDb_{Guid.NewGuid():N}";
         _warehousePath = Path.Combine(Path.GetTempPath(), "e2e-warehouse", Guid.NewGuid().ToString());
         _watermarkPath = Path.Combine(Path.GetTempPath(), "e2e-watermarks", Guid.NewGuid().ToString());
+
+        // Create logger factory for debugging
+        _loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.AddConsole();
+            builder.SetMinimumLevel(LogLevel.Debug);
+        });
 
         Directory.CreateDirectory(_warehousePath);
         Directory.CreateDirectory(_watermarkPath);
@@ -352,11 +364,11 @@ public class EndToEndSyncTests : IDisposable
 
     private IncrementalSyncCoordinator CreateCoordinator()
     {
-        var catalog = new FilesystemCatalog(_warehousePath, NullLogger<FilesystemCatalog>.Instance);
+        var catalog = new FilesystemCatalog(_warehousePath, _loggerFactory.CreateLogger<FilesystemCatalog>());
         var changeDetection = new TimestampChangeDetection("ModifiedDate");
-        var appender = new IcebergAppender(catalog, NullLogger<IcebergAppender>.Instance);
-        var reader = new IcebergReader(catalog, NullLogger<IcebergReader>.Instance);
-        var importer = new SqlServerImporter(NullLogger<SqlServerImporter>.Instance);
+        var appender = new IcebergAppender(catalog, _loggerFactory.CreateLogger<IcebergAppender>());
+        var reader = new IcebergReader(catalog, _loggerFactory.CreateLogger<IcebergReader>());
+        var importer = new SqlServerImporter(_loggerFactory.CreateLogger<SqlServerImporter>());
         var watermarkStore = new FileWatermarkStore(_watermarkPath);
 
         return new IncrementalSyncCoordinator(
@@ -365,7 +377,7 @@ public class EndToEndSyncTests : IDisposable
             reader,
             importer,
             watermarkStore,
-            NullLogger<IncrementalSyncCoordinator>.Instance);
+            _loggerFactory.CreateLogger<IncrementalSyncCoordinator>());
     }
 
     private string GetConnectionString(string database)
@@ -633,6 +645,8 @@ public class EndToEndSyncTests : IDisposable
                 Directory.Delete(_warehousePath, true);
             if (Directory.Exists(_watermarkPath))
                 Directory.Delete(_watermarkPath, true);
+
+            _loggerFactory?.Dispose();
         }
         catch
         {

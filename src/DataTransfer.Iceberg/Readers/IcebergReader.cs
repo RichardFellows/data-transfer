@@ -32,7 +32,7 @@ public class IcebergReader
         string tableName,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Reading Iceberg table {Table}", tableName);
+        _logger.LogInformation("[READER] Starting enumeration for table {Table}", tableName);
 
         // 1. Load table metadata
         var metadata = _catalog.LoadTable(tableName);
@@ -40,6 +40,9 @@ public class IcebergReader
         {
             throw new InvalidOperationException($"Table {tableName} does not exist");
         }
+
+        _logger.LogInformation("[READER] Loaded metadata - Total snapshots: {Count}, Current snapshot: {SnapshotId}",
+            metadata.Snapshots.Count, metadata.CurrentSnapshotId);
 
         // Handle empty table (no snapshots)
         if (metadata.CurrentSnapshotId == null)
@@ -52,37 +55,74 @@ public class IcebergReader
         var schema = metadata.Schemas.FirstOrDefault(s => s.SchemaId == metadata.CurrentSchemaId)
             ?? metadata.Schemas[0];
 
+        _logger.LogInformation("[READER] Reading snapshot {SnapshotId}, manifest list: {ManifestList}",
+            currentSnapshot.SnapshotId, currentSnapshot.ManifestList);
+
         // 2. Read manifest list
         var tablePath = _catalog.GetTablePath(tableName);
         var manifestListPath = Path.Combine(tablePath, currentSnapshot.ManifestList);
+
+        _logger.LogDebug("[READER] Manifest list path: {Path}, Exists: {Exists}",
+            manifestListPath, File.Exists(manifestListPath));
+
         var manifestPaths = ReadManifestList(manifestListPath);
 
-        _logger.LogDebug("Found {Count} manifest files in manifest list", manifestPaths.Count);
+        _logger.LogInformation("[READER] Found {Count} manifest files in manifest list", manifestPaths.Count);
+        foreach (var manifestPath in manifestPaths)
+        {
+            _logger.LogDebug("[READER]   Manifest: {Path}", manifestPath);
+        }
 
         // 3. Read all manifests to get data files
         var dataFiles = new List<string>();
         foreach (var manifestPath in manifestPaths)
         {
-            dataFiles.AddRange(ReadManifest(tablePath, manifestPath));
+            var filesFromManifest = ReadManifest(tablePath, manifestPath);
+            _logger.LogDebug("[READER]   Manifest {Path} contains {Count} data files", manifestPath, filesFromManifest.Count);
+            dataFiles.AddRange(filesFromManifest);
         }
 
-        _logger.LogDebug("Found {Count} data files across all manifests", dataFiles.Count);
+        _logger.LogInformation("[READER] Found {Count} data files across all manifests", dataFiles.Count);
+        foreach (var dataFile in dataFiles)
+        {
+            _logger.LogDebug("[READER]   Data file: {Path}", dataFile);
+        }
+
+        if (dataFiles.Count == 0)
+        {
+            _logger.LogWarning("[READER] WARNING: No data files found! This will result in empty enumerable.");
+            yield break;
+        }
 
         // 4. Read all Parquet data files
         var parquetReader = new IcebergParquetReader(NullLogger<IcebergParquetReader>.Instance);
+        int rowsYielded = 0;
 
         foreach (var dataFile in dataFiles)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var dataFilePath = Path.Combine(tablePath, dataFile);
+            _logger.LogDebug("[READER] Starting to read Parquet file: {Path}", dataFilePath);
+
+            int rowsFromFile = 0;
             await foreach (var row in parquetReader.ReadAsync(dataFilePath, schema, cancellationToken))
             {
+                rowsYielded++;
+                rowsFromFile++;
+
+                if (rowsYielded <= 5 || rowsYielded % 100 == 0)
+                {
+                    _logger.LogDebug("[READER] Yielded row {Count}", rowsYielded);
+                }
+
                 yield return row;
             }
+
+            _logger.LogDebug("[READER] Finished reading {Path}, yielded {Count} rows", dataFile, rowsFromFile);
         }
 
-        _logger.LogInformation("Completed reading Iceberg table {Table}", tableName);
+        _logger.LogInformation("[READER] Completed reading Iceberg table {Table}, total rows yielded: {Count}", tableName, rowsYielded);
     }
 
     /// <summary>
