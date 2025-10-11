@@ -154,6 +154,35 @@ public class ManifestListGenerator
     }
 
     /// <summary>
+    /// Reads manifest entries from an existing manifest list file
+    /// </summary>
+    /// <param name="manifestListPath">Path to the manifest list .avro file</param>
+    /// <returns>List of manifest metadata (path, size, added count)</returns>
+    public List<(string Path, long Size, int AddedCount)> ReadManifestList(string manifestListPath)
+    {
+        if (!File.Exists(manifestListPath))
+        {
+            throw new FileNotFoundException($"Manifest list file not found: {manifestListPath}");
+        }
+
+        var manifests = new List<(string, long, int)>();
+
+        using var reader = DataFileReader<GenericRecord>.OpenReader(manifestListPath);
+
+        while (reader.HasNext())
+        {
+            var record = reader.Next();
+            var manifestPath = record["manifest_path"] as string ?? string.Empty;
+            var manifestLength = record["manifest_length"] is long length ? length : 0L;
+            var addedCount = record["added_files_count"] as int? ?? 0;
+
+            manifests.Add((manifestPath, manifestLength, addedCount));
+        }
+
+        return manifests;
+    }
+
+    /// <summary>
     /// Helper class for writing Avro manifest list files with proper resource management
     /// </summary>
     private class AvroDataFileWriter : IDisposable

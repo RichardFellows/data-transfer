@@ -1,3 +1,4 @@
+using DataTransfer.Core.Models.Iceberg;
 using DataTransfer.Iceberg.Catalog;
 using DataTransfer.Iceberg.Metadata;
 using DataTransfer.Iceberg.Models;
@@ -75,8 +76,8 @@ public class IcebergAppender
             var manifestPath = GenerateManifest(tablePath, dataFiles, newSnapshotId);
             _logger.LogDebug("Generated manifest at {ManifestPath}", manifestPath);
 
-            // 6. Generate new manifest list
-            var manifestListPath = GenerateManifestList(tablePath, manifestPath, dataFiles.Count);
+            // 6. Generate new manifest list (accumulating previous manifests)
+            var manifestListPath = GenerateManifestList(tablePath, existingMetadata, manifestPath, dataFiles.Count);
             _logger.LogDebug("Generated manifest list at {ManifestListPath}", manifestListPath);
 
             // 7. Update metadata with new snapshot (preserving old ones)
@@ -201,22 +202,40 @@ public class IcebergAppender
     /// </summary>
     private string GenerateManifestList(
         string tablePath,
-        string manifestRelativePath,
+        IcebergTableMetadata existingMetadata,
+        string newManifestRelativePath,
         int addedFilesCount)
     {
         var generator = new ManifestListGenerator();
         var manifestListFileName = $"snap-{Guid.NewGuid()}.avro";
         var manifestListPath = Path.Combine(tablePath, "metadata", manifestListFileName);
 
-        // Get manifest file size
-        var manifestFullPath = Path.Combine(tablePath, manifestRelativePath);
-        var manifestSize = new FileInfo(manifestFullPath).Length;
+        // 1. Get previous snapshot's manifest list
+        var currentSnapshot = existingMetadata.Snapshots
+            .First(s => s.SnapshotId == existingMetadata.CurrentSnapshotId);
+        var previousManifestListPath = Path.Combine(tablePath, currentSnapshot.ManifestList);
 
-        generator.WriteManifestList(
-            manifestPath: manifestRelativePath,
-            outputPath: manifestListPath,
-            manifestSizeInBytes: manifestSize,
-            addedFilesCount: addedFilesCount);
+        // 2. Read existing manifest entries
+        var allManifests = new List<(string Path, long Size, int AddedCount)>();
+
+        if (File.Exists(previousManifestListPath))
+        {
+            var previousManifests = generator.ReadManifestList(previousManifestListPath);
+
+            // Carry forward previous manifests with existing_files_count instead of added_files_count
+            foreach (var (path, size, _) in previousManifests)
+            {
+                allManifests.Add((path, size, 0)); // 0 added, all are existing
+            }
+        }
+
+        // 3. Add new manifest
+        var newManifestFullPath = Path.Combine(tablePath, newManifestRelativePath);
+        var newManifestSize = new FileInfo(newManifestFullPath).Length;
+        allManifests.Add((newManifestRelativePath, newManifestSize, addedFilesCount));
+
+        // 4. Write accumulated manifest list
+        generator.WriteManifestList(manifestListPath, allManifests);
 
         return $"metadata/{manifestListFileName}";  // Return relative path
     }

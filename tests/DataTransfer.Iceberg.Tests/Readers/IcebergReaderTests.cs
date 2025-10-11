@@ -195,17 +195,11 @@ public class IcebergReaderTests : IDisposable
     {
         // Arrange
         var schema = CreateSimpleSchema();
-        await _writer.WriteTableAsync("empty_table", schema, new List<Dictionary<string, object>>());
+        var result = await _writer.WriteTableAsync("empty_table", schema, new List<Dictionary<string, object>>());
 
-        // Act
-        var rows = new List<Dictionary<string, object>>();
-        await foreach (var row in _reader.ReadTableAsync("empty_table"))
-        {
-            rows.Add(row);
-        }
-
-        // Assert
-        Assert.Empty(rows);
+        // Assert - empty tables should fail with error message
+        Assert.False(result.Success);
+        Assert.Contains("no data", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

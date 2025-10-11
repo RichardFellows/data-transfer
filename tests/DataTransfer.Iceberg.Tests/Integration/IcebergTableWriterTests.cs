@@ -202,10 +202,9 @@ public class IcebergTableWriterTests : IDisposable
         // Act
         var result = await writer.WriteTableAsync("empty_table", schema, emptyData);
 
-        // Assert
-        Assert.True(result.Success);
-        Assert.Equal(0, result.RecordCount);
-        Assert.Equal(0, result.DataFileCount);
+        // Assert - empty tables should fail with error message
+        Assert.False(result.Success);
+        Assert.Contains("no data", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

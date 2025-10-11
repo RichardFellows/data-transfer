@@ -55,17 +55,14 @@ public class IcebergTableWriter
             var tablePath = _catalog.InitializeTable(tableName);
             _logger.LogDebug("Initialized table structure at {TablePath}", tablePath);
 
-            // Handle empty data case
+            // Guard against empty data - empty tables should not be created
             if (data.Count == 0)
             {
-                _logger.LogWarning("No data to write for table {Table}, creating empty table", tableName);
+                _logger.LogError("Cannot write empty table {Table} - no data provided", tableName);
                 return new IcebergWriteResult
                 {
-                    Success = true,
-                    SnapshotId = 0,
-                    TablePath = tablePath,
-                    DataFileCount = 0,
-                    RecordCount = 0
+                    Success = false,
+                    ErrorMessage = "Cannot create table with no data. Ensure source contains at least one row."
                 };
             }
 

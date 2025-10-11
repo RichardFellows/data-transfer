@@ -137,8 +137,8 @@ public class EndToEndSyncTests : IDisposable
     public async Task Should_Handle_Large_Dataset_Sync()
     {
         // Arrange
-        await CreateSourceTable("LargeOrders");
-        await CreateTargetTable("LargeOrders");
+        await CreateSourceTable("LargeOrders", "OrderId");
+        await CreateTargetTable("LargeOrders", "OrderId");
 
         var coordinator = CreateCoordinator();
         var options = new SyncOptions
@@ -182,7 +182,7 @@ public class EndToEndSyncTests : IDisposable
         var coordinator = CreateCoordinator();
         var options = new SyncOptions
         {
-            PrimaryKeyColumn = "TransactionId",
+            PrimaryKeyColumn = "ProductId",
             WatermarkColumn = "ModifiedDate",
             WarehousePath = _warehousePath,
             WatermarkDirectory = _watermarkPath
@@ -303,7 +303,7 @@ public class EndToEndSyncTests : IDisposable
         return $"Server=localhost;Database={database};User Id=sa;Password=IcebergDemo@2024;TrustServerCertificate=true;";
     }
 
-    private async Task CreateSourceTable(string tableName)
+    private async Task CreateSourceTable(string tableName, string primaryKeyColumn = "ProductId")
     {
         await using var connection = new SqlConnection(GetConnectionString(_sourceDatabase));
         await connection.OpenAsync();
@@ -312,7 +312,7 @@ public class EndToEndSyncTests : IDisposable
         cmd.CommandText = $@"
             IF OBJECT_ID('{tableName}', 'U') IS NOT NULL DROP TABLE {tableName};
             CREATE TABLE {tableName} (
-                ProductId INT PRIMARY KEY,
+                {primaryKeyColumn} INT PRIMARY KEY,
                 Name NVARCHAR(200),
                 Price DECIMAL(18,2),
                 ModifiedDate DATETIME2 NOT NULL DEFAULT GETUTCDATE()
@@ -320,7 +320,7 @@ public class EndToEndSyncTests : IDisposable
         await cmd.ExecuteNonQueryAsync();
     }
 
-    private async Task CreateTargetTable(string tableName)
+    private async Task CreateTargetTable(string tableName, string primaryKeyColumn = "ProductId")
     {
         await using var connection = new SqlConnection(GetConnectionString(_targetDatabase));
         await connection.OpenAsync();
@@ -329,7 +329,7 @@ public class EndToEndSyncTests : IDisposable
         cmd.CommandText = $@"
             IF OBJECT_ID('{tableName}', 'U') IS NOT NULL DROP TABLE {tableName};
             CREATE TABLE {tableName} (
-                ProductId INT PRIMARY KEY,
+                {primaryKeyColumn} INT PRIMARY KEY,
                 Name NVARCHAR(200),
                 Price DECIMAL(18,2),
                 ModifiedDate DATETIME2
@@ -390,7 +390,7 @@ public class EndToEndSyncTests : IDisposable
 
             await using var cmd = connection.CreateCommand();
             cmd.CommandText = $@"
-                INSERT INTO LargeOrders (ProductId, Name, Price, ModifiedDate)
+                INSERT INTO LargeOrders (OrderId, Name, Price, ModifiedDate)
                 VALUES {string.Join(", ", values)}";
             await cmd.ExecuteNonQueryAsync();
         }

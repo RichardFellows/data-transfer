@@ -365,7 +365,15 @@ public class IcebergParquetWriter : IDisposable
 
                 case "string":
                     var stringWriter = columnWriter.LogicalWriter<string>();
-                    stringWriter.WriteBatch(values.Select(v => v?.ToString() ?? string.Empty).ToArray());
+                    // Preserve null values for optional fields, convert to empty string for required fields
+                    if (field.Required)
+                    {
+                        stringWriter.WriteBatch(values.Select(v => v?.ToString() ?? string.Empty).ToArray());
+                    }
+                    else
+                    {
+                        stringWriter.WriteBatch(values.Select(v => v?.ToString() ?? null!).ToArray());
+                    }
                     break;
 
                 case "binary":
