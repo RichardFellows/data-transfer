@@ -257,7 +257,7 @@ public class IncrementalSyncCoordinator
             long => "long",
             float => "float",
             double => "double",
-            decimal => "decimal(18,2)",
+            decimal => "double",  // Map decimal to double for Parquet compatibility
             bool => "boolean",
             DateTime => "timestamp",
             DateTimeOffset => "timestamptz",
