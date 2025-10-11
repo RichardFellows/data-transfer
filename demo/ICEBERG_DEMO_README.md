@@ -131,10 +131,68 @@ python3 scripts/validate-with-pyiceberg.py /tmp/iceberg-demo-warehouse customers
 
 ## Prerequisites
 
-- **.NET 8 SDK** (required)
-- **SQL Server LocalDB** (optional - Windows only)
-- **DuckDB** (optional - for querying)
-- **PyIceberg** (optional - for validation)
+### Required
+- **.NET 8 SDK**
+
+### Optional (for full SQL Server demo)
+- **SQL Server** or **LocalDB**
+- **sqlcmd** (command-line tools)
+
+### Optional (for querying/validation)
+- **DuckDB** - Query Iceberg tables
+- **PyIceberg** - Validate tables
+- **jq** - JSON inspection
+
+## SQL Server Setup Options
+
+### Option 1: Run Without SQL Server (Current Behavior)
+
+The demo works without SQL Server by creating sample Iceberg tables:
+
+```bash
+./demo/02-export-to-iceberg.sh
+# Creates sample tables automatically
+```
+
+### Option 2: Install sqlcmd on Linux
+
+```bash
+# Install Microsoft SQL Server command-line tools
+./demo/install-sqlcmd-linux.sh
+
+# Restart terminal or reload bashrc
+source ~/.bashrc
+
+# Verify installation
+sqlcmd -?
+```
+
+### Option 3: Connect to Remote SQL Server
+
+If you have SQL Server running elsewhere (e.g., on Windows host):
+
+```bash
+# Connect to remote SQL Server
+./demo/demo-with-remote-sqlserver.sh <server> <username> <password>
+
+# Example: Windows host from WSL
+./demo/demo-with-remote-sqlserver.sh localhost,1433 sa 'YourPassword'
+```
+
+### Option 4: Run SQL Server in Docker
+
+```bash
+# Start SQL Server container
+docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=YourStrong@Password" \
+  -p 1433:1433 --name sqlserver \
+  -d mcr.microsoft.com/mssql/server:2022-latest
+
+# Wait for startup (30 seconds)
+sleep 30
+
+# Run demo
+./demo/demo-with-remote-sqlserver.sh localhost,1433 sa 'YourStrong@Password'
+```
 
 ## Environment Variables
 
