@@ -97,7 +97,50 @@ public class EndToEndSyncTests : IDisposable
 
         // Cycle 3: Update 50 rows
         await Task.Delay(100);
+
+        // Log watermark before update
+        var watermarkStore = new FileWatermarkStore(_watermarkPath);
+        var watermarkBeforeUpdate = await watermarkStore.GetWatermarkAsync("products_sync");
+        Console.WriteLine($"[CYCLE 3] === UPDATE CYCLE STARTING ===");
+        Console.WriteLine($"[CYCLE 3] Watermark before update: {watermarkBeforeUpdate?.LastSyncTimestamp:O}");
+        Console.WriteLine($"[CYCLE 3] Current UTC time: {DateTime.UtcNow:O}");
+
+        // Sleep to ensure timestamp separation
+        await Task.Delay(1000);
+
+        var timeBeforeUpdate = DateTime.UtcNow;
+        Console.WriteLine($"[CYCLE 3] Time before update: {timeBeforeUpdate:O}");
+
         await UpdateProducts(1, 50, "Updated");
+
+        var timeAfterUpdate = DateTime.UtcNow;
+        Console.WriteLine($"[CYCLE 3] Time after update: {timeAfterUpdate:O}");
+        Console.WriteLine($"[CYCLE 3] Update duration: {(timeAfterUpdate - timeBeforeUpdate).TotalMilliseconds}ms");
+
+        // Verify updates in source
+        var sourceUpdatedCount = await GetSourceRowCountWhere("Products", "Name LIKE '%Updated%'");
+        Console.WriteLine($"[CYCLE 3] Source has {sourceUpdatedCount} rows with 'Updated' suffix");
+
+        // Check ModifiedDate of updated rows
+        var updatedModifiedDates = await GetModifiedDatesForUpdatedRows();
+        Console.WriteLine($"[CYCLE 3] Updated rows have ModifiedDate range: {updatedModifiedDates.Min():O} to {updatedModifiedDates.Max():O}");
+        Console.WriteLine($"[CYCLE 3] Watermark LastSyncTimestamp: {watermarkBeforeUpdate?.LastSyncTimestamp:O}");
+        Console.WriteLine($"[CYCLE 3] Updated rows are AFTER watermark: {updatedModifiedDates.All(d => d > watermarkBeforeUpdate?.LastSyncTimestamp)}");
+
+        // Test the incremental query that will be generated
+        var changeDetection = new TimestampChangeDetection("ModifiedDate");
+        await using var testConn = new SqlConnection(GetConnectionString(_sourceDatabase));
+        await testConn.OpenAsync();
+        var incrementalQuery = await changeDetection.BuildIncrementalQueryAsync("Products", watermarkBeforeUpdate, testConn);
+        Console.WriteLine($"[CYCLE 3] Incremental query SQL: {incrementalQuery.Sql}");
+        if (incrementalQuery.Parameters != null && incrementalQuery.Parameters.Count > 0)
+        {
+            foreach (var param in incrementalQuery.Parameters)
+            {
+                Console.WriteLine($"[CYCLE 3] Parameter {param.Key} = {param.Value}");
+            }
+        }
+
         var result3 = await coordinator.SyncAsync(
             GetConnectionString(_sourceDatabase),
             "Products",
@@ -106,12 +149,39 @@ public class EndToEndSyncTests : IDisposable
             "Products",
             options);
 
-        Assert.True(result3.Success);
+        Console.WriteLine($"[CYCLE 3] Sync result - Success: {result3.Success}, RowsExtracted: {result3.RowsExtracted}, RowsImported: {result3.RowsImported}");
+
+        // Check what's actually in Iceberg
+        var icebergData = await ReadIcebergTable("products_sync");
+        var icebergUpdatedCount = icebergData.Count(row => row.ContainsKey("Name") && row["Name"]?.ToString()?.Contains("Updated") == true);
+        Console.WriteLine($"[CYCLE 3] Iceberg has {icebergData.Count} total rows, {icebergUpdatedCount} with 'Updated' suffix");
+
+        // Sample Iceberg data
+        var icebergSample = icebergData.Take(5).ToList();
+        Console.WriteLine($"[CYCLE 3] Iceberg sample data (first 5 rows):");
+        foreach (var row in icebergSample)
+        {
+            var id = row.ContainsKey("ProductId") ? row["ProductId"] : "?";
+            var name = row.ContainsKey("Name") ? row["Name"] : "?";
+            Console.WriteLine($"  ProductId={id}, Name={name}");
+        }
+
+        Assert.True(result3.Success, $"Cycle 3 failed: {result3.ErrorMessage}");
         Assert.Equal(50, result3.RowsExtracted);
         Assert.Equal(700, await GetTargetRowCount("Products")); // Still 700 (updates, not inserts)
 
-        // Verify updated data
+        // Verify updated data in target
         var updatedCount = await GetTargetRowCountWhere("Products", "Name LIKE '%Updated%'");
+        Console.WriteLine($"[CYCLE 3] Target has {updatedCount} rows with 'Updated' suffix (expected 50)");
+
+        // Sample some target data to see what was actually written
+        var targetSample = await GetTargetSampleData("Products", 5);
+        Console.WriteLine($"[CYCLE 3] Target sample data (first 5 rows):");
+        foreach (var row in targetSample)
+        {
+            Console.WriteLine($"  ProductId={row.Id}, Name={row.Name}");
+        }
+
         Assert.Equal(50, updatedCount);
 
         // Cycle 4: No changes
@@ -429,6 +499,64 @@ public class EndToEndSyncTests : IDisposable
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = $"SELECT COUNT(*) FROM {tableName}";
         return (int)await cmd.ExecuteScalarAsync()!;
+    }
+
+    private async Task<int> GetSourceRowCountWhere(string tableName, string whereClause)
+    {
+        await using var connection = new SqlConnection(GetConnectionString(_sourceDatabase));
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = $"SELECT COUNT(*) FROM {tableName} WHERE {whereClause}";
+        return (int)await cmd.ExecuteScalarAsync()!;
+    }
+
+    private async Task<List<DateTime>> GetModifiedDatesForUpdatedRows()
+    {
+        await using var connection = new SqlConnection(GetConnectionString(_sourceDatabase));
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT ModifiedDate FROM Products WHERE Name LIKE '%Updated%' ORDER BY ModifiedDate";
+        await using var reader = await cmd.ExecuteReaderAsync();
+
+        var dates = new List<DateTime>();
+        while (await reader.ReadAsync())
+        {
+            dates.Add(reader.GetDateTime(0));
+        }
+        return dates;
+    }
+
+    private async Task<List<(int Id, string Name)>> GetTargetSampleData(string tableName, int limit)
+    {
+        await using var connection = new SqlConnection(GetConnectionString(_targetDatabase));
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = $"SELECT TOP({limit}) ProductId, Name FROM {tableName} ORDER BY ProductId";
+        await using var reader = await cmd.ExecuteReaderAsync();
+
+        var results = new List<(int, string)>();
+        while (await reader.ReadAsync())
+        {
+            results.Add((reader.GetInt32(0), reader.GetString(1)));
+        }
+        return results;
+    }
+
+    private async Task<List<Dictionary<string, object>>> ReadIcebergTable(string tableName)
+    {
+        var catalog = new FilesystemCatalog(_warehousePath, NullLogger<FilesystemCatalog>.Instance);
+        var reader = new IcebergReader(catalog, NullLogger<IcebergReader>.Instance);
+
+        var rows = new List<Dictionary<string, object>>();
+        await foreach (var row in reader.ReadTableAsync(tableName))
+        {
+            rows.Add(row);
+        }
+
+        return rows;
     }
 
     private async Task<int> GetTargetRowCount(string tableName)

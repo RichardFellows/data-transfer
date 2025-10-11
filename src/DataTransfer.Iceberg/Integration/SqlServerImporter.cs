@@ -133,29 +133,49 @@ public class SqlServerImporter
     {
         var dataTable = new DataTable();
         bool schemaCreated = false;
+        int rowsProcessed = 0;
 
-        await foreach (var row in data.WithCancellation(cancellationToken))
+        _logger.LogDebug("Starting to materialize data table");
+
+        try
         {
-            if (!schemaCreated)
+            await foreach (var row in data.WithCancellation(cancellationToken))
             {
-                // Create schema from first row
+                if (!schemaCreated)
+                {
+                    // Create schema from first row
+                    _logger.LogDebug("Creating schema from first row with {ColumnCount} columns", row.Count);
+                    foreach (var kvp in row)
+                    {
+                        var columnType = InferColumnType(kvp.Value);
+                        dataTable.Columns.Add(kvp.Key, columnType);
+                        _logger.LogDebug("Added column: {ColumnName} ({ColumnType})", kvp.Key, columnType.Name);
+                    }
+                    schemaCreated = true;
+                }
+
+                // Add row
+                var dataRow = dataTable.NewRow();
                 foreach (var kvp in row)
                 {
-                    var columnType = InferColumnType(kvp.Value);
-                    dataTable.Columns.Add(kvp.Key, columnType);
+                    dataRow[kvp.Key] = kvp.Value ?? DBNull.Value;
                 }
-                schemaCreated = true;
-            }
+                dataTable.Rows.Add(dataRow);
+                rowsProcessed++;
 
-            // Add row
-            var dataRow = dataTable.NewRow();
-            foreach (var kvp in row)
-            {
-                dataRow[kvp.Key] = kvp.Value ?? DBNull.Value;
+                if (rowsProcessed % 100 == 0)
+                {
+                    _logger.LogDebug("Materialized {RowCount} rows so far", rowsProcessed);
+                }
             }
-            dataTable.Rows.Add(dataRow);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error materializing data table after {RowCount} rows", rowsProcessed);
+            throw;
         }
 
+        _logger.LogInformation("Materialized {TotalRows} rows into DataTable", rowsProcessed);
         return dataTable;
     }
 
