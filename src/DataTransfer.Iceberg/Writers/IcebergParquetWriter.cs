@@ -311,27 +311,56 @@ public class IcebergParquetWriter : IDisposable
                     break;
 
                 case "date":
-                    var dateWriter = columnWriter.LogicalWriter<int>();
-                    var dates = values.Select(v =>
+                    if (field.Required)
                     {
-                        if (v == null) return 0;
-                        var dt = v is DateTime dateTime ? dateTime : Convert.ToDateTime(v);
-                        return (int)(dt.Date - new DateTime(1970, 1, 1)).TotalDays;
-                    }).ToArray();
-                    dateWriter.WriteBatch(dates);
+                        var dateWriter = columnWriter.LogicalWriter<int>();
+                        var dates = values.Select(v =>
+                        {
+                            if (v == null) return 0;
+                            var dt = v is DateTime dateTime ? dateTime : Convert.ToDateTime(v);
+                            return (int)(dt.Date - new DateTime(1970, 1, 1)).TotalDays;
+                        }).ToArray();
+                        dateWriter.WriteBatch(dates);
+                    }
+                    else
+                    {
+                        var nullableDateWriter = columnWriter.LogicalWriter<int?>();
+                        var nullableDates = values.Select(v =>
+                        {
+                            if (v == null) return (int?)null;
+                            var dt = v is DateTime dateTime ? dateTime : Convert.ToDateTime(v);
+                            return (int?)(dt.Date - new DateTime(1970, 1, 1)).TotalDays;
+                        }).ToArray();
+                        nullableDateWriter.WriteBatch(nullableDates);
+                    }
                     break;
 
                 case "timestamp":
                 case "timestamptz":
-                    var timestampWriter = columnWriter.LogicalWriter<DateTime>();
-                    var timestamps = values.Select(v =>
+                    if (field.Required)
                     {
-                        if (v == null) return DateTime.MinValue;
-                        if (v is DateTime dt) return dt.ToUniversalTime();
-                        if (v is DateTimeOffset dto) return dto.UtcDateTime;
-                        return Convert.ToDateTime(v).ToUniversalTime();
-                    }).ToArray();
-                    timestampWriter.WriteBatch(timestamps);
+                        var timestampWriter = columnWriter.LogicalWriter<DateTime>();
+                        var timestamps = values.Select(v =>
+                        {
+                            if (v == null) return DateTime.MinValue;
+                            if (v is DateTime dt) return dt.ToUniversalTime();
+                            if (v is DateTimeOffset dto) return dto.UtcDateTime;
+                            return Convert.ToDateTime(v).ToUniversalTime();
+                        }).ToArray();
+                        timestampWriter.WriteBatch(timestamps);
+                    }
+                    else
+                    {
+                        var nullableTimestampWriter = columnWriter.LogicalWriter<DateTime?>();
+                        var nullableTimestamps = values.Select(v =>
+                        {
+                            if (v == null) return (DateTime?)null;
+                            if (v is DateTime dt) return dt.ToUniversalTime();
+                            if (v is DateTimeOffset dto) return dto.UtcDateTime;
+                            return Convert.ToDateTime(v).ToUniversalTime();
+                        }).ToArray();
+                        nullableTimestampWriter.WriteBatch(nullableTimestamps);
+                    }
                     break;
 
                 case "string":
