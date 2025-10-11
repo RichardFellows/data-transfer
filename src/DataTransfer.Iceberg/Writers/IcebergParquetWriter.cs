@@ -2,6 +2,7 @@ using DataTransfer.Core.Models.Iceberg;
 using DataTransfer.Iceberg.Models;
 using ParquetSharp;
 using ParquetSharp.Schema;
+using System.Text.Json;
 
 namespace DataTransfer.Iceberg.Writers;
 
@@ -82,6 +83,17 @@ public class IcebergParquetWriter : IDisposable
     {
         logicalType = null;
         typeLength = -1;
+
+        // Handle JsonElement from deserialization
+        if (icebergType is JsonElement jsonElement)
+        {
+            if (jsonElement.ValueKind == JsonValueKind.String)
+            {
+                // Primitive type stored as string
+                icebergType = jsonElement.GetString()!;
+            }
+            // Complex types would be objects, handle them below
+        }
 
         if (icebergType is string primitiveType)
         {
@@ -222,6 +234,12 @@ public class IcebergParquetWriter : IDisposable
     private void WriteColumnBatch(ColumnWriter columnWriter, IcebergField field, object[] values)
     {
         var fieldType = field.Type;
+
+        // Handle JsonElement from deserialization
+        if (fieldType is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.String)
+        {
+            fieldType = jsonElement.GetString()!;
+        }
 
         if (fieldType is string primitiveType)
         {

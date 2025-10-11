@@ -51,6 +51,47 @@ public class TableMetadataGenerator
     }
 
     /// <summary>
+    /// Updates existing table metadata with a new snapshot
+    /// Preserves all existing snapshots and adds the new one
+    /// </summary>
+    /// <param name="existingMetadata">Current table metadata</param>
+    /// <param name="newSnapshotId">ID for the new snapshot</param>
+    /// <param name="manifestListPath">Relative path to the new manifest list</param>
+    /// <returns>Updated table metadata with new snapshot</returns>
+    public IcebergTableMetadata UpdateMetadataWithNewSnapshot(
+        IcebergTableMetadata existingMetadata,
+        long newSnapshotId,
+        string manifestListPath)
+    {
+        var currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        // Create new snapshot
+        var newSnapshot = new IcebergSnapshot
+        {
+            SnapshotId = newSnapshotId,
+            TimestampMs = currentTimestamp,
+            ManifestList = manifestListPath
+        };
+
+        // Clone existing metadata and add new snapshot
+        return new IcebergTableMetadata
+        {
+            FormatVersion = existingMetadata.FormatVersion,
+            TableUuid = existingMetadata.TableUuid,
+            Location = existingMetadata.Location,
+            LastUpdatedMs = currentTimestamp,
+            LastColumnId = existingMetadata.LastColumnId,
+            Schemas = existingMetadata.Schemas,
+            CurrentSchemaId = existingMetadata.CurrentSchemaId,
+            PartitionSpecs = existingMetadata.PartitionSpecs,
+            DefaultSpecId = existingMetadata.DefaultSpecId,
+            LastPartitionId = existingMetadata.LastPartitionId,
+            Snapshots = existingMetadata.Snapshots.Concat(new[] { newSnapshot }).ToList(),
+            CurrentSnapshotId = newSnapshotId
+        };
+    }
+
+    /// <summary>
     /// Writes table metadata to a JSON file with Iceberg-compliant formatting
     /// </summary>
     /// <param name="metadata">Table metadata to write</param>
