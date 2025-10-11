@@ -1,10 +1,18 @@
 # Implementation Prompt: Incremental Sync for SQL Server ↔ Iceberg
 
+## ⚠️ IMPLEMENTATION STATUS (Updated 2025-10-11)
+
+**Branch:** `feature/incremental-sync`
+**Completion:** ~60% (4 of 7 phases)
+**Next Steps:** See "Continuation Prompt" section at end of document
+
+---
+
 ## Context
 
 You are implementing **incremental synchronization** between SQL Server databases using Apache Iceberg as an intermediate storage layer. The system already has:
 
-✅ **Existing Functionality:**
+✅ **Existing Functionality (Before Incremental Sync):**
 - Full table export from SQL Server to Iceberg (`SqlServerToIcebergExporter`)
 - Create new Iceberg tables with Parquet data (`IcebergTableWriter`)
 - Iceberg v2 format compliance with field-ID preservation
@@ -14,14 +22,17 @@ You are implementing **incremental synchronization** between SQL Server database
 - Table metadata management (`TableMetadataGenerator`)
 - Validation scripts (PyIceberg, DuckDB)
 
-❌ **Missing (to be implemented):**
-- Append new data to existing Iceberg tables (new snapshots)
-- Read data from Iceberg Parquet files
-- Detect changes in source SQL Server (watermark-based)
-- Import data from Iceberg to target SQL Server
-- Merge/upsert logic for target database
-- Watermark storage and management
-- End-to-end incremental sync orchestration
+✅ **IMPLEMENTED - Incremental Sync Components (Phases 1-3, 5):**
+- ✅ **Phase 1:** Append new data to existing Iceberg tables (`IcebergAppender`) - 11/11 tests passing
+- ✅ **Phase 2:** Read data from Iceberg Parquet files (`IcebergReader`, `IcebergParquetReader`) - 6/9 tests passing
+- ✅ **Phase 3:** Detect changes in source SQL Server (`TimestampChangeDetection`, `IChangeDetectionStrategy`)
+- ✅ **Phase 5:** Watermark storage and management (`FileWatermarkStore`, `IWatermarkStore`)
+
+❌ **REMAINING - To Be Implemented (Phases 4, 6, 7):**
+- ❌ **Phase 4:** Import data from Iceberg to target SQL Server (`SqlServerImporter`)
+- ❌ **Phase 4:** Merge/upsert logic for target database (`UpsertMergeStrategy`, `IMergeStrategy`)
+- ❌ **Phase 6:** End-to-end incremental sync orchestration (`IncrementalSyncCoordinator`)
+- ❌ **Phase 7:** Demo scripts and full integration tests
 
 ## Objective
 
@@ -720,37 +731,228 @@ public async Task Should_Perform_Complete_Incremental_Sync()
   - Microsoft.Data.SqlClient 5.2.0
   - Microsoft.Extensions.Logging.Abstractions 8.0.0
 
-## Start Here
+## ⚠️ CONTINUATION PROMPT - Start Here for Remaining Work
 
-Begin with **Phase 1: Iceberg Append Capability** as it's the foundation for everything else.
+**If you are picking up this implementation in a new context, use this prompt:**
 
-Create the test file first:
-```csharp
-// tests/DataTransfer.Iceberg.Tests/Integration/IcebergAppenderTests.cs
-[Fact]
-public async Task Should_Append_Data_To_Existing_Table()
-{
-    // RED phase - this will fail initially
-    var appender = new IcebergAppender(_catalog, _logger);
+---
 
-    // Create initial table with 5 rows
-    var initialData = CreateSampleData(5);
-    await _writer.WriteTableAsync("test_table", _schema, initialData);
+# 🚀 Continuation Prompt: Complete Incremental Sync Implementation
 
-    // Append 3 more rows
-    var appendData = CreateSampleData(3);
-    var result = await appender.AppendAsync("test_table", appendData);
+## Context Summary
 
-    // Assert
-    Assert.True(result.Success);
-    Assert.Equal(3, result.RowsAppended);
+I'm continuing implementation of incremental synchronization between SQL Server databases using Apache Iceberg as intermediate storage. The project is **60% complete** with core infrastructure implemented.
 
-    // Verify metadata has 2 snapshots
-    var metadata = _catalog.LoadTable("test_table");
-    Assert.Equal(2, metadata.Snapshots.Count);
-}
+**Repository:** `/home/richard/sonnet45/`
+**Branch:** `feature/incremental-sync` (already checked out)
+**Completion Status:** Phases 1, 2, 3, and 5 are complete and committed
+
+## What's Already Done ✅
+
+### Phase 1: IcebergAppender (Complete - 11/11 tests passing)
+- Location: `src/DataTransfer.Iceberg/Integration/IcebergAppender.cs`
+- Appends new data to existing Iceberg tables
+- Creates new snapshots with version incrementing
+- Preserves all previous snapshots for time-travel
+
+### Phase 2: IcebergReader (Core Complete - 6/9 tests passing)
+- Location: `src/DataTransfer.Iceberg/Readers/IcebergReader.cs`
+- Location: `src/DataTransfer.Iceberg/Readers/IcebergParquetReader.cs`
+- Reads data from Iceberg tables via Avro manifest chain
+- Reconstructs rows from Parquet columnar storage
+- Supports time-travel (reading specific snapshots)
+
+### Phase 3: Change Detection (Complete)
+- Location: `src/DataTransfer.Iceberg/ChangeDetection/TimestampChangeDetection.cs`
+- Watermark-based change detection for incremental queries
+- Interface: `IChangeDetectionStrategy`
+
+### Phase 5: Watermark Management (Complete)
+- Location: `src/DataTransfer.Iceberg/Watermarks/FileWatermarkStore.cs`
+- JSON-based watermark persistence
+- Tracks sync state between runs
+
+## What Needs to Be Implemented ⏳
+
+### Phase 4: SQL Server Importer (Priority 1)
+**Goal:** Load data from Iceberg into target SQL Server with merge logic
+
+**Files to Create:**
+1. `src/DataTransfer.Iceberg/Integration/SqlServerImporter.cs`
+2. `src/DataTransfer.Iceberg/MergeStrategies/IMergeStrategy.cs`
+3. `src/DataTransfer.Iceberg/MergeStrategies/UpsertMergeStrategy.cs`
+4. `src/DataTransfer.Iceberg/Models/ImportResult.cs`
+5. `src/DataTransfer.Iceberg/Models/MergeResult.cs`
+
+**Implementation Reference:** See lines 279-372 in this document for complete code examples.
+
+**Key Requirements:**
+- Use `SqlBulkCopy` for efficient data loading
+- Create temp tables for staging
+- Execute SQL MERGE statements for upsert
+- Stream data from `IAsyncEnumerable<Dictionary<string, object>>`
+- Return structured results (rows inserted/updated)
+
+### Phase 6: Orchestration (Priority 2)
+**Goal:** Coordinate end-to-end incremental sync workflow
+
+**Files to Create:**
+1. `src/DataTransfer.Iceberg/Integration/IncrementalSyncCoordinator.cs`
+2. `src/DataTransfer.Iceberg/Models/SyncOptions.cs`
+3. `src/DataTransfer.Iceberg/Models/SyncResult.cs`
+
+**Implementation Reference:** See lines 433-555 in this document for complete code examples.
+
+**Workflow:**
+1. Get watermark from `IWatermarkStore`
+2. Build incremental query using `IChangeDetectionStrategy`
+3. Extract changes from source SQL Server
+4. Append to Iceberg using `IcebergAppender` (or create initial table)
+5. Read from Iceberg using `IcebergReader`
+6. Import to target SQL Server using `SqlServerImporter`
+7. Update watermark on success
+
+### Phase 7: Demo & Tests (Priority 3)
+**Goal:** Create working demonstration and integration tests
+
+**Files to Create:**
+1. `demo/06-incremental-sync-demo.sh`
+2. `tests/DataTransfer.Iceberg.Tests/Integration/EndToEndSyncTests.cs`
+
+## Implementation Instructions
+
+### Step 1: Review Existing Code
+```bash
+# Check current branch
+git status
+
+# Review completed implementations
+cat src/DataTransfer.Iceberg/Integration/IcebergAppender.cs
+cat src/DataTransfer.Iceberg/Readers/IcebergReader.cs
+cat src/DataTransfer.Iceberg/Watermarks/FileWatermarkStore.cs
+cat src/DataTransfer.Iceberg/ChangeDetection/TimestampChangeDetection.cs
+
+# Run existing tests to verify everything works
+dotnet test tests/DataTransfer.Iceberg.Tests
 ```
 
-Then implement `IcebergAppender` to make it pass (GREEN phase).
+### Step 2: Implement Phase 4 (SQL Server Importer)
+Follow TDD approach:
+1. Create test file: `tests/DataTransfer.Iceberg.Tests/Integration/SqlServerImporterTests.cs`
+2. Write failing tests (RED)
+3. Implement `SqlServerImporter` (GREEN)
+4. Refactor and commit
 
-Good luck! 🚀
+**Reference Documentation:**
+- Lines 279-372 of this document for complete implementation
+- Use existing `SqlServerToIcebergExporter.cs` as pattern reference
+
+### Step 3: Implement Phase 6 (Orchestration)
+1. Create test file for `IncrementalSyncCoordinator`
+2. Wire up all existing components
+3. Add error handling and logging
+4. Test end-to-end workflow
+
+**Reference Documentation:**
+- Lines 433-555 of this document for complete implementation
+
+### Step 4: Create Demo
+1. Setup test SQL Server databases (can use Docker)
+2. Create demo script showing:
+   - Initial sync (1000 rows)
+   - Add changes (100 rows)
+   - Incremental sync
+   - Verification
+3. Add verification queries
+
+## Key Design Patterns Already Established
+
+1. **Async/await throughout** with `CancellationToken` support
+2. **`IAsyncEnumerable<T>`** for streaming (avoid loading all data into memory)
+3. **Structured results** (don't throw exceptions for business logic failures)
+4. **`ILogger<T>`** for all logging
+5. **TDD workflow** with RED-GREEN-REFACTOR commits
+
+## Testing Commands
+
+```bash
+# Run all tests
+dotnet test
+
+# Run specific phase tests
+dotnet test --filter "FullyQualifiedName~IcebergAppenderTests"
+dotnet test --filter "FullyQualifiedName~IcebergReaderTests"
+
+# Build solution
+dotnet build
+```
+
+## Success Criteria
+
+✅ Phase 4 complete when:
+- `SqlServerImporter` can bulk copy data from `IAsyncEnumerable`
+- `UpsertMergeStrategy` executes MERGE statements correctly
+- Tests verify insert/update counts
+- Integration test shows data flowing from Iceberg to SQL Server
+
+✅ Phase 6 complete when:
+- `IncrementalSyncCoordinator` successfully orchestrates full workflow
+- Watermarks are updated after successful sync
+- Error handling prevents watermark updates on failure
+- Integration test shows: Initial sync → Add changes → Incremental sync → Verify
+
+✅ Phase 7 complete when:
+- Demo script runs end-to-end without errors
+- Can verify 1000 → 1100 row sync
+- Iceberg table has 2 snapshots
+- Documentation is complete
+
+## Available Documentation
+
+1. **This file** - Complete implementation guide for all phases
+2. `docs/ICEBERG_READER_IMPLEMENTATION_GUIDE.md` - Detailed Avro/Parquet patterns
+3. `demo/INCREMENTAL_SYNC_README.md` - Status summary and examples
+4. `CLAUDE.md` - Project-level TDD and testing guidelines
+
+## Troubleshooting
+
+**If tests fail:**
+- Check that you're on `feature/incremental-sync` branch
+- Verify `dotnet build` succeeds
+- Check test output for specific errors
+
+**If unsure about patterns:**
+- Look at existing implementations (IcebergAppender, IcebergReader)
+- Follow the code examples in lines 279-555 of this document
+- Use `ILogger<T>` for debugging
+
+**For SQL Server connection issues:**
+- Update connection strings in test files
+- Consider using Docker SQL Server for consistency
+
+## Quick Start Commands
+
+```bash
+# Verify current state
+git log --oneline -10
+dotnet test tests/DataTransfer.Iceberg.Tests
+
+# Start Phase 4 implementation
+# 1. Create test file (see line 362-372 for test examples)
+# 2. Implement SqlServerImporter (see line 292-325 for code)
+# 3. Run tests: dotnet test --filter "FullyQualifiedName~SqlServerImporterTests"
+# 4. Commit: git commit -m "feat(iceberg): implement SqlServerImporter [GREEN]"
+```
+
+## Questions?
+
+Refer to:
+- Lines 279-372 for Phase 4 complete implementation
+- Lines 433-555 for Phase 6 complete implementation
+- Lines 558-613 for Phase 7 demo script
+
+All code patterns are documented. Follow the TDD approach established in Phases 1-3.
+
+Good luck completing the implementation! 🚀
+
+---
