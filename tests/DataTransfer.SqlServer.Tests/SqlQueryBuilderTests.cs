@@ -186,4 +186,172 @@ public class SqlQueryBuilderTests
         Assert.Contains("SELECT * FROM", query);
         Assert.DoesNotContain("WHERE", query);
     }
+
+    [Fact]
+    public void QueryBuilder_Should_Add_Custom_Where_Clause_From_ExtractSettings()
+    {
+        var tableConfig = new TableConfiguration
+        {
+            Source = new TableIdentifier
+            {
+                Database = "TestDB",
+                Schema = "dbo",
+                Table = "TestTable"
+            },
+            ExtractSettings = new ExtractSettings
+            {
+                WhereClause = "Status = 'Active' AND IsDeleted = 0"
+            }
+        };
+
+        var builder = new SqlQueryBuilder();
+        var query = builder.BuildSelectQuery(tableConfig, null);
+
+        Assert.Contains("SELECT * FROM [TestDB].[dbo].[TestTable]", query);
+        Assert.Contains("WHERE Status = 'Active' AND IsDeleted = 0", query);
+    }
+
+    [Fact]
+    public void QueryBuilder_Should_Combine_Strategy_And_Custom_Where_Clauses()
+    {
+        var tableConfig = new TableConfiguration
+        {
+            Source = new TableIdentifier
+            {
+                Database = "TestDB",
+                Schema = "dbo",
+                Table = "TestTable"
+            },
+            Partitioning = new PartitioningConfiguration
+            {
+                Type = PartitionType.Date,
+                Column = "CreatedDate"
+            },
+            ExtractSettings = new ExtractSettings
+            {
+                WhereClause = "Status = 'Active'"
+            }
+        };
+
+        var strategy = new DatePartitionStrategy("CreatedDate");
+        var startDate = new DateTime(2024, 1, 1);
+        var endDate = new DateTime(2024, 1, 31);
+
+        var builder = new SqlQueryBuilder();
+        var query = builder.BuildSelectQuery(tableConfig, strategy, startDate, endDate);
+
+        Assert.Contains("WHERE", query);
+        Assert.Contains("CreatedDate", query);
+        Assert.Contains("Status = 'Active'", query);
+        Assert.Contains("AND", query);  // Should combine with AND
+    }
+
+    [Fact]
+    public void QueryBuilder_Should_Add_Row_Limit_Using_TOP()
+    {
+        var tableConfig = new TableConfiguration
+        {
+            Source = new TableIdentifier
+            {
+                Database = "TestDB",
+                Schema = "dbo",
+                Table = "TestTable"
+            },
+            ExtractSettings = new ExtractSettings
+            {
+                RowLimit = 1000
+            }
+        };
+
+        var builder = new SqlQueryBuilder();
+        var query = builder.BuildSelectQuery(tableConfig, null);
+
+        Assert.Contains("SELECT TOP (1000) * FROM [TestDB].[dbo].[TestTable]", query);
+    }
+
+    [Fact]
+    public void QueryBuilder_Should_Support_Row_Limit_With_Where_Clause()
+    {
+        var tableConfig = new TableConfiguration
+        {
+            Source = new TableIdentifier
+            {
+                Database = "TestDB",
+                Schema = "dbo",
+                Table = "TestTable"
+            },
+            ExtractSettings = new ExtractSettings
+            {
+                RowLimit = 500,
+                WhereClause = "IsActive = 1"
+            }
+        };
+
+        var builder = new SqlQueryBuilder();
+        var query = builder.BuildSelectQuery(tableConfig, null);
+
+        Assert.Contains("SELECT TOP (500) * FROM", query);
+        Assert.Contains("WHERE IsActive = 1", query);
+    }
+
+    [Fact]
+    public void QueryBuilder_Should_Not_Add_TOP_When_RowLimit_Is_Null()
+    {
+        var tableConfig = new TableConfiguration
+        {
+            Source = new TableIdentifier
+            {
+                Database = "TestDB",
+                Schema = "dbo",
+                Table = "TestTable"
+            },
+            ExtractSettings = new ExtractSettings
+            {
+                RowLimit = null
+            }
+        };
+
+        var builder = new SqlQueryBuilder();
+        var query = builder.BuildSelectQuery(tableConfig, null);
+
+        Assert.DoesNotContain("TOP", query);
+        Assert.Contains("SELECT * FROM", query);
+    }
+
+    [Fact]
+    public void QueryBuilder_Should_Support_All_Features_Combined()
+    {
+        // Test TOP + custom WHERE + partition WHERE all together
+        var tableConfig = new TableConfiguration
+        {
+            Source = new TableIdentifier
+            {
+                Database = "TestDB",
+                Schema = "dbo",
+                Table = "TestTable"
+            },
+            Partitioning = new PartitioningConfiguration
+            {
+                Type = PartitionType.Date,
+                Column = "CreatedDate"
+            },
+            ExtractSettings = new ExtractSettings
+            {
+                RowLimit = 100,
+                WhereClause = "Status = 'Active'"
+            }
+        };
+
+        var strategy = new DatePartitionStrategy("CreatedDate");
+        var startDate = new DateTime(2024, 1, 1);
+        var endDate = new DateTime(2024, 1, 31);
+
+        var builder = new SqlQueryBuilder();
+        var query = builder.BuildSelectQuery(tableConfig, strategy, startDate, endDate);
+
+        Assert.Contains("SELECT TOP (100) * FROM", query);
+        Assert.Contains("WHERE", query);
+        Assert.Contains("CreatedDate", query);
+        Assert.Contains("Status = 'Active'", query);
+    }
 }

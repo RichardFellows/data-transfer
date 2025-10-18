@@ -13,10 +13,18 @@ public class SqlQueryBuilder
         DateTime? endDate = null)
     {
         var sb = new StringBuilder();
-        sb.Append("SELECT * FROM ");
+        sb.Append("SELECT ");
+
+        // Add TOP (N) if row limit is specified
+        if (tableConfig.ExtractSettings?.RowLimit != null && tableConfig.ExtractSettings.RowLimit > 0)
+        {
+            sb.Append($"TOP ({tableConfig.ExtractSettings.RowLimit}) ");
+        }
+
+        sb.Append("* FROM ");
         sb.Append(FormatTableName(tableConfig.Source));
 
-        AppendWhereClause(sb, partitionStrategy, startDate, endDate);
+        AppendWhereClause(sb, tableConfig, partitionStrategy, startDate, endDate);
 
         return sb.ToString();
     }
@@ -31,7 +39,7 @@ public class SqlQueryBuilder
         sb.Append("SELECT COUNT(*) FROM ");
         sb.Append(FormatTableName(tableConfig.Source));
 
-        AppendWhereClause(sb, partitionStrategy, startDate, endDate);
+        AppendWhereClause(sb, tableConfig, partitionStrategy, startDate, endDate);
 
         return sb.ToString();
     }
@@ -74,21 +82,34 @@ public class SqlQueryBuilder
 
     private void AppendWhereClause(
         StringBuilder sb,
+        TableConfiguration tableConfig,
         PartitionStrategy? partitionStrategy,
         DateTime? startDate,
         DateTime? endDate)
     {
-        if (partitionStrategy == null || startDate == null || endDate == null)
+        var whereClauses = new List<string>();
+
+        // Add partition strategy WHERE clause
+        if (partitionStrategy != null && startDate != null && endDate != null)
         {
-            return;
+            var partitionWhere = partitionStrategy.BuildWhereClause(startDate.Value, endDate.Value);
+            if (!string.IsNullOrEmpty(partitionWhere))
+            {
+                whereClauses.Add(partitionWhere);
+            }
         }
 
-        var whereClause = partitionStrategy.BuildWhereClause(startDate.Value, endDate.Value);
+        // Add custom WHERE clause from ExtractSettings
+        if (!string.IsNullOrWhiteSpace(tableConfig.ExtractSettings?.WhereClause))
+        {
+            whereClauses.Add(tableConfig.ExtractSettings.WhereClause);
+        }
 
-        if (!string.IsNullOrEmpty(whereClause))
+        // Combine WHERE clauses with AND
+        if (whereClauses.Count > 0)
         {
             sb.Append(" WHERE ");
-            sb.Append(whereClause);
+            sb.Append(string.Join(" AND ", whereClauses));
         }
     }
 }

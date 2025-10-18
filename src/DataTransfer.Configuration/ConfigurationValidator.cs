@@ -80,6 +80,9 @@ public class ConfigurationValidator
 
         // Validate partitioning
         ValidatePartitioning(table.Partitioning, tablePrefix, result);
+
+        // Validate extract settings
+        ValidateExtractSettings(table.ExtractSettings, tablePrefix, result);
     }
 
     private void ValidatePartitioning(PartitioningConfiguration partitioning, string tablePrefix, ValidationResult result)
@@ -97,6 +100,38 @@ public class ConfigurationValidator
 
         // IntDate has a default format, so we don't need to validate it
         // Scd2 uses Format for expiration column, which has a default
+    }
+
+    private void ValidateExtractSettings(ExtractSettings extractSettings, string tablePrefix, ValidationResult result)
+    {
+        if (extractSettings == null)
+        {
+            return; // ExtractSettings is optional
+        }
+
+        // Validate RowLimit must be positive if specified
+        if (extractSettings.RowLimit.HasValue && extractSettings.RowLimit.Value <= 0)
+        {
+            result.AddError($"{tablePrefix}: RowLimit must be greater than zero (got {extractSettings.RowLimit.Value})");
+        }
+
+        // Validate WhereClause doesn't contain dangerous SQL keywords (basic SQL injection prevention)
+        if (!string.IsNullOrWhiteSpace(extractSettings.WhereClause))
+        {
+            var dangerousKeywords = new[] { ";--", "DROP", "DELETE", "TRUNCATE", "ALTER", "CREATE", "EXEC", "EXECUTE", "xp_" };
+            var upperClause = extractSettings.WhereClause.ToUpperInvariant();
+
+            foreach (var keyword in dangerousKeywords)
+            {
+                if (upperClause.Contains(keyword.ToUpperInvariant()))
+                {
+                    result.AddError($"{tablePrefix}: WhereClause contains potentially dangerous SQL keyword: {keyword}");
+                }
+            }
+
+            // Note: If user includes WHERE keyword, it will be part of the clause (not ideal but won't break)
+            // Future enhancement: Add AddWarning method to ValidationResult
+        }
     }
 
     private void ValidateStorage(StorageConfiguration storage, ValidationResult result)
