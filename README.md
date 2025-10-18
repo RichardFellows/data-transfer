@@ -32,11 +32,19 @@ A high-performance .NET 8 solution for transferring data between SQL Server inst
 - **Configurable**: JSON-based configuration with validation
 - **High Performance**: SqlBulkCopy for fast loading, async/await throughout
 
+## Quick Start
+
+**New to DataTransfer?** See the [Getting Started Guide](GETTING_STARTED.md) for a step-by-step walkthrough including SQL Server setup, configuration, and your first transfer.
+
+---
+
 ## Prerequisites
 
 - **.NET 8 SDK** - [Download](https://dotnet.microsoft.com/download/dotnet/8.0)
 - **SQL Server 2019+** - Source and destination databases
 - **Docker** (optional) - For containerized deployment
+
+**Verify your setup:** Run `./scripts/validate-setup.sh` to check prerequisites
 
 ## Installation
 
@@ -330,7 +338,11 @@ DataTransfer/
 │   ├── DataTransfer.Integration.Tests/ # 5 E2E tests (Testcontainers)
 │   └── DataTransfer.Web.Tests/         # 20+ Playwright E2E tests with screenshots
 ├── config/
-│   └── appsettings.json                # Configuration file
+│   ├── appsettings.json                # Your configuration (create from template)
+│   ├── appsettings.template.json       # Clean configuration template
+│   └── appsettings.EXAMPLE.json        # Annotated configuration example
+├── scripts/
+│   └── validate-setup.sh               # Environment validation script
 ├── docker/
 │   └── Dockerfile                      # Docker deployment
 ├── CLAUDE.md                           # Project instructions for LLMs
