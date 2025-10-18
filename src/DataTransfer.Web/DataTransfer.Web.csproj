@@ -6,6 +6,7 @@
     <ProjectReference Include="..\DataTransfer.Pipeline\DataTransfer.Pipeline.csproj" />
     <ProjectReference Include="..\DataTransfer.SqlServer\DataTransfer.SqlServer.csproj" />
     <ProjectReference Include="..\DataTransfer.Parquet\DataTransfer.Parquet.csproj" />
+    <ProjectReference Include="..\DataTransfer.Iceberg\DataTransfer.Iceberg.csproj" />
   </ItemGroup>
 
   <ItemGroup>

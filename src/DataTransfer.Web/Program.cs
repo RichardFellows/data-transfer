@@ -1,4 +1,10 @@
 using DataTransfer.Core.Interfaces;
+using DataTransfer.Iceberg.Catalog;
+using DataTransfer.Iceberg.ChangeDetection;
+using DataTransfer.Iceberg.Integration;
+using DataTransfer.Iceberg.Readers;
+using DataTransfer.Iceberg.Watermarks;
+using DataTransfer.Iceberg.Writers;
 using DataTransfer.Parquet;
 using DataTransfer.Pipeline;
 using DataTransfer.SqlServer;
@@ -32,6 +38,26 @@ builder.Services.AddSingleton<IParquetExtractor>(sp =>
     new ParquetExtractor("./parquet-files"));
 builder.Services.AddSingleton<IParquetWriter, ParquetWriter>();
 builder.Services.AddSingleton<UnifiedTransferOrchestrator>();
+
+// Iceberg services
+var icebergWarehousePath = builder.Configuration["Iceberg:WarehousePath"] ?? "./iceberg-warehouse";
+builder.Services.AddSingleton<FilesystemCatalog>(sp =>
+    new FilesystemCatalog(
+        icebergWarehousePath,
+        sp.GetRequiredService<ILogger<FilesystemCatalog>>()));
+
+builder.Services.AddSingleton<SqlServerToIcebergExporter>();
+builder.Services.AddSingleton<IcebergTableWriter>();
+builder.Services.AddSingleton<IcebergParquetWriter>();
+builder.Services.AddSingleton<IcebergReader>();
+builder.Services.AddSingleton<IcebergAppender>();
+builder.Services.AddSingleton<SqlServerImporter>();
+
+// Incremental sync services
+builder.Services.AddSingleton<IWatermarkStore>(sp =>
+    new FileWatermarkStore(Path.Combine(icebergWarehousePath, ".watermarks")));
+builder.Services.AddSingleton<IChangeDetectionStrategy, TimestampChangeDetection>();
+builder.Services.AddSingleton<IncrementalSyncCoordinator>();
 
 // Web-specific services
 builder.Services.AddSingleton<TransferExecutionService>();
