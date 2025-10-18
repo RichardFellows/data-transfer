@@ -381,6 +381,7 @@ static async Task<int> RunCommandLineModeAsync(string[] args, IServiceProvider s
     // Parse arguments
     string? profileName = null;
     string? configPath = null;
+    string? environmentName = null;
     string? discoverConnectionString = null;
     string? discoverTable = null;
     bool listProfiles = false;
@@ -416,6 +417,13 @@ static async Task<int> RunCommandLineModeAsync(string[] args, IServiceProvider s
                 if (i + 1 < args.Length)
                 {
                     configPath = args[i + 1];
+                    i++;
+                }
+                break;
+            case "--environment":
+                if (i + 1 < args.Length)
+                {
+                    environmentName = args[i + 1];
                     i++;
                 }
                 break;
@@ -547,6 +555,15 @@ static async Task<int> RunCommandLineModeAsync(string[] args, IServiceProvider s
         }
 
         logger.LogInformation("Executing profile: {ProfileName}", profileName);
+
+        // Apply environment settings if specified
+        var envManager = await LoadEnvironmentAsync(environmentName, logger);
+        if (envManager != null && !string.IsNullOrEmpty(environmentName))
+        {
+            var environment = envManager.GetEnvironment(environmentName);
+            ApplyEnvironmentToConfiguration(profile.Configuration, environment, envManager);
+        }
+
         var result = await orchestrator.ExecuteTransferAsync(profile.Configuration, CancellationToken.None);
 
         if (result.Success)
@@ -1029,6 +1046,68 @@ static async Task<int> RunSyncIcebergAsync(
     }
 }
 
+static async Task<EnvironmentManager?> LoadEnvironmentAsync(string? environmentName, Microsoft.Extensions.Logging.ILogger logger)
+{
+    if (string.IsNullOrEmpty(environmentName))
+    {
+        return null;
+    }
+
+    try
+    {
+        var envFilePath = "config/environments.json";
+        if (!File.Exists(envFilePath))
+        {
+            logger.LogWarning("Environment file not found: {Path}. Continuing without environment substitution.", envFilePath);
+            return null;
+        }
+
+        var json = await File.ReadAllTextAsync(envFilePath);
+        var settings = System.Text.Json.JsonSerializer.Deserialize<EnvironmentSettings>(json);
+
+        if (settings == null || settings.Environments.Count == 0)
+        {
+            logger.LogWarning("No environments found in {Path}", envFilePath);
+            return null;
+        }
+
+        var manager = new EnvironmentManager(settings);
+        var env = manager.GetEnvironment(environmentName);
+        logger.LogInformation("Loaded environment: {EnvironmentName}", environmentName);
+        return manager;
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Failed to load environment: {EnvironmentName}", environmentName);
+        throw;
+    }
+}
+
+static void ApplyEnvironmentToConfiguration(TransferConfiguration config, EnvironmentConfiguration environment, EnvironmentManager manager)
+{
+    // Apply token replacement to connection strings
+    if (!string.IsNullOrEmpty(config.Source.ConnectionString))
+    {
+        config.Source.ConnectionString = manager.ReplaceTokens(config.Source.ConnectionString, environment);
+    }
+
+    if (!string.IsNullOrEmpty(config.Destination.ConnectionString))
+    {
+        config.Destination.ConnectionString = manager.ReplaceTokens(config.Destination.ConnectionString, environment);
+    }
+
+    // Apply token replacement to file paths
+    if (!string.IsNullOrEmpty(config.Source.ParquetPath))
+    {
+        config.Source.ParquetPath = manager.ReplaceTokens(config.Source.ParquetPath, environment);
+    }
+
+    if (!string.IsNullOrEmpty(config.Destination.ParquetPath))
+    {
+        config.Destination.ParquetPath = manager.ReplaceTokens(config.Destination.ParquetPath, environment);
+    }
+}
+
 static void ShowHelp()
 {
     Console.WriteLine();
@@ -1041,6 +1120,7 @@ static void ShowHelp()
     Console.WriteLine("Command-line mode:");
     Console.WriteLine("  --profile <name>      Run transfer from saved profile");
     Console.WriteLine("  --config <path>       Run transfer from config file (legacy)");
+    Console.WriteLine("  --environment <name>  Use environment-specific settings (dev, staging, prod)");
     Console.WriteLine("  --list-profiles       List all saved profiles");
     Console.WriteLine("  --discover <connstr>  Discover database schema and suggest partitions");
     Console.WriteLine("  --table <schema.name> Discover specific table (use with --discover)");
@@ -1064,6 +1144,9 @@ static void ShowHelp()
     Console.WriteLine("Examples:");
     Console.WriteLine("  # Run saved profile");
     Console.WriteLine("  dotnet run --project src/DataTransfer.Console -- --profile \"Daily Orders Extract\"");
+    Console.WriteLine();
+    Console.WriteLine("  # Run profile with environment-specific settings");
+    Console.WriteLine("  dotnet run --project src/DataTransfer.Console -- --profile \"Daily Orders Extract\" --environment prod");
     Console.WriteLine();
     Console.WriteLine("  # Export to Iceberg");
     Console.WriteLine("  dotnet run --project src/DataTransfer.Console -- --export-iceberg \\");

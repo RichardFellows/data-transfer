@@ -1,0 +1,28 @@
+{
+  "environments": [
+    {
+      "name": "dev",
+      "variables": {
+        "SourceConnectionString": "Server=dev-sqlserver;Database=SourceDB;User Id=dev_user;Password=dev_pass;TrustServerCertificate=True;",
+        "DestinationConnectionString": "Server=dev-sqlserver;Database=DestDB;User Id=dev_user;Password=dev_pass;TrustServerCertificate=True;",
+        "ParquetPath": "/data/dev/parquet-files"
+      }
+    },
+    {
+      "name": "staging",
+      "variables": {
+        "SourceConnectionString": "Server=staging-sqlserver;Database=SourceDB;User Id=staging_user;Password=staging_pass;TrustServerCertificate=True;",
+        "DestinationConnectionString": "Server=staging-sqlserver;Database=DestDB;User Id=staging_user;Password=staging_pass;TrustServerCertificate=True;",
+        "ParquetPath": "/data/staging/parquet-files"
+      }
+    },
+    {
+      "name": "prod",
+      "variables": {
+        "SourceConnectionString": "Server=prod-sqlserver;Database=SourceDB;User Id=prod_user;Password=prod_pass;TrustServerCertificate=True;",
+        "DestinationConnectionString": "Server=prod-sqlserver;Database=DestDB;User Id=prod_user;Password=prod_pass;TrustServerCertificate=True;",
+        "ParquetPath": "/data/prod/parquet-files"
+      }
+    }
+  ]
+}
