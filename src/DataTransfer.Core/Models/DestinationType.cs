@@ -13,5 +13,10 @@ public enum DestinationType
     /// <summary>
     /// Parquet file
     /// </summary>
-    Parquet
+    Parquet,
+
+    /// <summary>
+    /// Apache Iceberg table (Parquet-backed with metadata)
+    /// </summary>
+    Iceberg
 }

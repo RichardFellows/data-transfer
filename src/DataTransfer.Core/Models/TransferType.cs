@@ -18,5 +18,20 @@ public enum TransferType
     /// <summary>
     /// Parquet to SQL Server (import only)
     /// </summary>
-    ParquetToSql
+    ParquetToSql,
+
+    /// <summary>
+    /// SQL Server to Iceberg (export to Iceberg table format)
+    /// </summary>
+    SqlToIceberg,
+
+    /// <summary>
+    /// Iceberg to SQL Server (import from Iceberg table format)
+    /// </summary>
+    IcebergToSql,
+
+    /// <summary>
+    /// SQL Server to Iceberg with incremental sync (delta loads with watermark tracking)
+    /// </summary>
+    SqlToIcebergIncremental
 }

@@ -52,6 +52,12 @@ public class SourceConfiguration
     /// Path to Parquet file source
     /// </summary>
     public string? ParquetPath { get; set; }
+
+    // For Iceberg sources
+    /// <summary>
+    /// Iceberg table configuration for source
+    /// </summary>
+    public IcebergTransferConfiguration? IcebergTable { get; set; }
 }
 
 /// <summary>
@@ -85,4 +91,10 @@ public class DestinationConfiguration
     /// Compression algorithm for Parquet files (default: Snappy)
     /// </summary>
     public string? Compression { get; set; } = "Snappy";
+
+    // For Iceberg destinations
+    /// <summary>
+    /// Iceberg table configuration for destination
+    /// </summary>
+    public IcebergTransferConfiguration? IcebergTable { get; set; }
 }
