@@ -385,6 +385,22 @@ static async Task<int> RunCommandLineModeAsync(string[] args, IServiceProvider s
     string? discoverTable = null;
     bool listProfiles = false;
 
+    // Iceberg command arguments
+    string? exportIcebergConn = null;
+    string? exportIcebergTable = null;
+    string? exportIcebergName = null;
+    string? importIcebergTable = null;
+    string? importIcebergConn = null;
+    string? importIcebergDestTable = null;
+    string? syncSourceConn = null;
+    string? syncSourceTable = null;
+    string? syncIcebergTable = null;
+    string? syncTargetConn = null;
+    string? syncTargetTable = null;
+    string? syncPrimaryKey = null;
+    string? syncWatermark = null;
+    string? syncMergeStrategy = "upsert";
+
     for (int i = 0; i < args.Length; i++)
     {
         switch (args[i])
@@ -420,6 +436,62 @@ static async Task<int> RunCommandLineModeAsync(string[] args, IServiceProvider s
             case "--list-profiles":
                 listProfiles = true;
                 break;
+            case "--export-iceberg":
+                if (i + 2 < args.Length)
+                {
+                    exportIcebergConn = args[i + 1];
+                    exportIcebergTable = args[i + 2];
+                    i += 2;
+                }
+                break;
+            case "--iceberg-name":
+                if (i + 1 < args.Length)
+                {
+                    exportIcebergName = args[i + 1];
+                    i++;
+                }
+                break;
+            case "--import-iceberg":
+                if (i + 3 < args.Length)
+                {
+                    importIcebergTable = args[i + 1];
+                    importIcebergConn = args[i + 2];
+                    importIcebergDestTable = args[i + 3];
+                    i += 3;
+                }
+                break;
+            case "--sync-iceberg":
+                if (i + 5 < args.Length)
+                {
+                    syncSourceConn = args[i + 1];
+                    syncSourceTable = args[i + 2];
+                    syncIcebergTable = args[i + 3];
+                    syncTargetConn = args[i + 4];
+                    syncTargetTable = args[i + 5];
+                    i += 5;
+                }
+                break;
+            case "--primary-key":
+                if (i + 1 < args.Length)
+                {
+                    syncPrimaryKey = args[i + 1];
+                    i++;
+                }
+                break;
+            case "--watermark":
+                if (i + 1 < args.Length)
+                {
+                    syncWatermark = args[i + 1];
+                    i++;
+                }
+                break;
+            case "--merge-strategy":
+                if (i + 1 < args.Length)
+                {
+                    syncMergeStrategy = args[i + 1];
+                    i++;
+                }
+                break;
             case "--help":
                 ShowHelp();
                 return 0;
@@ -435,6 +507,31 @@ static async Task<int> RunCommandLineModeAsync(string[] args, IServiceProvider s
     if (!string.IsNullOrEmpty(discoverConnectionString))
     {
         return await RunSchemaDiscoveryAsync(discoverConnectionString, discoverTable, logger);
+    }
+
+    // Iceberg commands
+    if (!string.IsNullOrEmpty(exportIcebergConn) && !string.IsNullOrEmpty(exportIcebergTable))
+    {
+        return await RunExportIcebergAsync(exportIcebergConn, exportIcebergTable, exportIcebergName, orchestrator, logger);
+    }
+
+    if (!string.IsNullOrEmpty(importIcebergTable) && !string.IsNullOrEmpty(importIcebergConn) && !string.IsNullOrEmpty(importIcebergDestTable))
+    {
+        return await RunImportIcebergAsync(importIcebergTable, importIcebergConn, importIcebergDestTable, orchestrator, logger);
+    }
+
+    if (!string.IsNullOrEmpty(syncSourceConn) && !string.IsNullOrEmpty(syncSourceTable) &&
+        !string.IsNullOrEmpty(syncIcebergTable) && !string.IsNullOrEmpty(syncTargetConn) &&
+        !string.IsNullOrEmpty(syncTargetTable))
+    {
+        if (string.IsNullOrEmpty(syncPrimaryKey) || string.IsNullOrEmpty(syncWatermark))
+        {
+            logger.LogError("--sync-iceberg requires --primary-key and --watermark parameters");
+            return 1;
+        }
+        return await RunSyncIcebergAsync(
+            syncSourceConn, syncSourceTable, syncIcebergTable, syncTargetConn, syncTargetTable,
+            syncPrimaryKey, syncWatermark, syncMergeStrategy ?? "upsert", orchestrator, logger);
     }
 
     if (!string.IsNullOrEmpty(profileName))
@@ -714,6 +811,224 @@ static void DisplayTableDetails(DataTransfer.SqlServer.Models.TableInfo table)
     }
 }
 
+static async Task<int> RunExportIcebergAsync(
+    string connectionString,
+    string sourceTable,
+    string? icebergTableName,
+    UnifiedTransferOrchestrator orchestrator,
+    Microsoft.Extensions.Logging.ILogger logger)
+{
+    logger.LogInformation("Exporting SQL Server table {Table} to Iceberg", sourceTable);
+
+    // Parse table name (expect schema.table format)
+    var parts = sourceTable.Split('.');
+    if (parts.Length != 2)
+    {
+        logger.LogError("Table name must be in format schema.table (e.g., dbo.Customers)");
+        return 1;
+    }
+
+    var config = new TransferConfiguration
+    {
+        TransferType = TransferType.SqlToIceberg,
+        Source = new SourceConfiguration
+        {
+            Type = SourceType.SqlServer,
+            ConnectionString = connectionString,
+            Table = new TableIdentifier
+            {
+                Schema = parts[0],
+                Table = parts[1]
+            }
+        },
+        Destination = new DestinationConfiguration
+        {
+            Type = DestinationType.Iceberg,
+            IcebergTable = new IcebergTransferConfiguration
+            {
+                TableName = icebergTableName ?? parts[1].ToLower()
+            }
+        }
+    };
+
+    try
+    {
+        var result = await orchestrator.ExecuteTransferAsync(config, CancellationToken.None);
+
+        if (result.Success)
+        {
+            logger.LogInformation("✓ Successfully exported {Rows} rows to Iceberg table '{IcebergTable}' in {Duration}s",
+                result.RowsLoaded, config.Destination.IcebergTable.TableName, result.Duration.TotalSeconds);
+            logger.LogInformation("  Iceberg table path: {Path}", result.ParquetFilePath);
+            return 0;
+        }
+        else
+        {
+            logger.LogError("✗ Export failed: {Error}", result.ErrorMessage);
+            return 1;
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Export to Iceberg failed");
+        return 1;
+    }
+}
+
+static async Task<int> RunImportIcebergAsync(
+    string icebergTableName,
+    string connectionString,
+    string destinationTable,
+    UnifiedTransferOrchestrator orchestrator,
+    Microsoft.Extensions.Logging.ILogger logger)
+{
+    logger.LogInformation("Importing Iceberg table {IcebergTable} to SQL Server table {Table}",
+        icebergTableName, destinationTable);
+
+    // Parse destination table name (expect schema.table format)
+    var parts = destinationTable.Split('.');
+    if (parts.Length != 2)
+    {
+        logger.LogError("Destination table name must be in format schema.table (e.g., dbo.Customers)");
+        return 1;
+    }
+
+    var config = new TransferConfiguration
+    {
+        TransferType = TransferType.IcebergToSql,
+        Source = new SourceConfiguration
+        {
+            Type = SourceType.Iceberg,
+            IcebergTable = new IcebergTransferConfiguration
+            {
+                TableName = icebergTableName
+            }
+        },
+        Destination = new DestinationConfiguration
+        {
+            Type = DestinationType.SqlServer,
+            ConnectionString = connectionString,
+            Table = new TableIdentifier
+            {
+                Schema = parts[0],
+                Table = parts[1]
+            }
+        }
+    };
+
+    try
+    {
+        var result = await orchestrator.ExecuteTransferAsync(config, CancellationToken.None);
+
+        if (result.Success)
+        {
+            logger.LogInformation("✓ Successfully imported {Rows} rows from Iceberg to SQL Server in {Duration}s",
+                result.RowsLoaded, result.Duration.TotalSeconds);
+            return 0;
+        }
+        else
+        {
+            logger.LogError("✗ Import failed: {Error}", result.ErrorMessage);
+            return 1;
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Import from Iceberg failed");
+        return 1;
+    }
+}
+
+static async Task<int> RunSyncIcebergAsync(
+    string sourceConnectionString,
+    string sourceTable,
+    string icebergTableName,
+    string targetConnectionString,
+    string targetTable,
+    string primaryKeyColumn,
+    string watermarkColumn,
+    string mergeStrategy,
+    UnifiedTransferOrchestrator orchestrator,
+    Microsoft.Extensions.Logging.ILogger logger)
+{
+    logger.LogInformation("Starting incremental sync: {SourceTable} → {IcebergTable} → {TargetTable}",
+        sourceTable, icebergTableName, targetTable);
+
+    // Parse source table
+    var sourceParts = sourceTable.Split('.');
+    if (sourceParts.Length != 2)
+    {
+        logger.LogError("Source table name must be in format schema.table");
+        return 1;
+    }
+
+    // Parse target table
+    var targetParts = targetTable.Split('.');
+    if (targetParts.Length != 2)
+    {
+        logger.LogError("Target table name must be in format schema.table");
+        return 1;
+    }
+
+    var config = new TransferConfiguration
+    {
+        TransferType = TransferType.SqlToIcebergIncremental,
+        Source = new SourceConfiguration
+        {
+            Type = SourceType.SqlServer,
+            ConnectionString = sourceConnectionString,
+            Table = new TableIdentifier
+            {
+                Schema = sourceParts[0],
+                Table = sourceParts[1]
+            }
+        },
+        Destination = new DestinationConfiguration
+        {
+            Type = DestinationType.Iceberg,
+            ConnectionString = targetConnectionString,
+            Table = new TableIdentifier
+            {
+                Schema = targetParts[0],
+                Table = targetParts[1]
+            },
+            IcebergTable = new IcebergTransferConfiguration
+            {
+                TableName = icebergTableName,
+                IncrementalSync = new IncrementalSyncOptions
+                {
+                    PrimaryKeyColumn = primaryKeyColumn,
+                    WatermarkColumn = watermarkColumn,
+                    MergeStrategy = mergeStrategy,
+                    WatermarkType = "timestamp"
+                }
+            }
+        }
+    };
+
+    try
+    {
+        var result = await orchestrator.ExecuteTransferAsync(config, CancellationToken.None);
+
+        if (result.Success)
+        {
+            logger.LogInformation("✓ Incremental sync completed: {Extracted} rows extracted, {Loaded} rows loaded in {Duration}s",
+                result.RowsExtracted, result.RowsLoaded, result.Duration.TotalSeconds);
+            return 0;
+        }
+        else
+        {
+            logger.LogError("✗ Sync failed: {Error}", result.ErrorMessage);
+            return 1;
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Incremental sync failed");
+        return 1;
+    }
+}
+
 static void ShowHelp()
 {
     Console.WriteLine();
@@ -729,12 +1044,42 @@ static void ShowHelp()
     Console.WriteLine("  --list-profiles       List all saved profiles");
     Console.WriteLine("  --discover <connstr>  Discover database schema and suggest partitions");
     Console.WriteLine("  --table <schema.name> Discover specific table (use with --discover)");
+    Console.WriteLine();
+    Console.WriteLine("Iceberg commands:");
+    Console.WriteLine("  --export-iceberg <conn> <schema.table>");
+    Console.WriteLine("                        Export SQL Server table to Iceberg format");
+    Console.WriteLine("    --iceberg-name <name>  Optional: Iceberg table name (default: table name)");
+    Console.WriteLine();
+    Console.WriteLine("  --import-iceberg <iceberg-table> <conn> <schema.table>");
+    Console.WriteLine("                        Import Iceberg table to SQL Server");
+    Console.WriteLine();
+    Console.WriteLine("  --sync-iceberg <src-conn> <src-table> <iceberg-table> <tgt-conn> <tgt-table>");
+    Console.WriteLine("                        Incremental sync with watermark tracking");
+    Console.WriteLine("    --primary-key <column>   Primary key column for merge (required)");
+    Console.WriteLine("    --watermark <column>     Watermark column for change detection (required)");
+    Console.WriteLine("    --merge-strategy <type>  Merge strategy: upsert or append (default: upsert)");
+    Console.WriteLine();
     Console.WriteLine("  --help                Show this help message");
     Console.WriteLine();
     Console.WriteLine("Examples:");
+    Console.WriteLine("  # Run saved profile");
     Console.WriteLine("  dotnet run --project src/DataTransfer.Console -- --profile \"Daily Orders Extract\"");
-    Console.WriteLine("  dotnet run --project src/DataTransfer.Console -- --list-profiles");
-    Console.WriteLine("  dotnet run --project src/DataTransfer.Console -- --config config/appsettings.json");
+    Console.WriteLine();
+    Console.WriteLine("  # Export to Iceberg");
+    Console.WriteLine("  dotnet run --project src/DataTransfer.Console -- --export-iceberg \\");
+    Console.WriteLine("    \"Server=localhost;Database=Sales;...\" dbo.Orders");
+    Console.WriteLine();
+    Console.WriteLine("  # Import from Iceberg");
+    Console.WriteLine("  dotnet run --project src/DataTransfer.Console -- --import-iceberg \\");
+    Console.WriteLine("    orders \"Server=localhost;Database=Warehouse;...\" dbo.Orders");
+    Console.WriteLine();
+    Console.WriteLine("  # Incremental sync");
+    Console.WriteLine("  dotnet run --project src/DataTransfer.Console -- --sync-iceberg \\");
+    Console.WriteLine("    \"Server=source;...\" dbo.Customers customers \\");
+    Console.WriteLine("    \"Server=target;...\" dbo.Customers \\");
+    Console.WriteLine("    --primary-key CustomerId --watermark LastModifiedDate");
+    Console.WriteLine();
+    Console.WriteLine("  # Discover schema");
     Console.WriteLine("  dotnet run --project src/DataTransfer.Console -- --discover \"Server=localhost;Database=MyDB;...\"");
     Console.WriteLine("  dotnet run --project src/DataTransfer.Console -- --discover \"...\" --table dbo.Orders");
     Console.WriteLine();
