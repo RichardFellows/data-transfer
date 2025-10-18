@@ -220,7 +220,14 @@ public class IncrementalSyncCoordinator
 
     private IMergeStrategy CreateMergeStrategy(SyncOptions options)
     {
-        return new UpsertMergeStrategy(options.PrimaryKeyColumn);
+        return options.MergeStrategy.ToLowerInvariant() switch
+        {
+            "append" => new AppendMergeStrategy(options.PrimaryKeyColumn),
+            "upsert" => new UpsertMergeStrategy(options.PrimaryKeyColumn),
+            _ => throw new ArgumentException(
+                $"Invalid merge strategy '{options.MergeStrategy}'. Supported values: 'upsert', 'append'",
+                nameof(options))
+        };
     }
 
     private IcebergSchema InferSchemaFromData(List<Dictionary<string, object>> data)

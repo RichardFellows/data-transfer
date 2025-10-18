@@ -6,7 +6,7 @@ namespace DataTransfer.Iceberg.Models;
 public class SyncOptions
 {
     /// <summary>
-    /// Primary key column for upsert strategy
+    /// Primary key column for merge operations
     /// </summary>
     public string PrimaryKeyColumn { get; set; } = "Id";
 
@@ -14,6 +14,11 @@ public class SyncOptions
     /// Watermark column for change detection (e.g., ModifiedDate, UpdatedAt)
     /// </summary>
     public string WatermarkColumn { get; set; } = "ModifiedDate";
+
+    /// <summary>
+    /// Merge strategy: "upsert" (insert or update) or "append" (insert only)
+    /// </summary>
+    public string MergeStrategy { get; set; } = "upsert";
 
     /// <summary>
     /// Warehouse path for Iceberg storage

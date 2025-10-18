@@ -290,6 +290,7 @@ public class UnifiedTransferOrchestrator
         {
             PrimaryKeyColumn = incrementalOptions.PrimaryKeyColumn,
             WatermarkColumn = incrementalOptions.WatermarkColumn,
+            MergeStrategy = incrementalOptions.MergeStrategy,
             WarehousePath = _icebergWarehousePath,
             WatermarkDirectory = Path.Combine(_icebergWarehousePath, ".watermarks")
         };
