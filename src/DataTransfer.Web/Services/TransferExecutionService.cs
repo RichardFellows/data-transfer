@@ -65,6 +65,7 @@ public class TransferExecutionService
         {
             SourceType.SqlServer => $"SQL: {config.Source.Table?.FullyQualifiedName ?? "Unknown"}",
             SourceType.Parquet => $"Parquet: {config.Source.ParquetPath ?? "Unknown"}",
+            SourceType.Iceberg => $"Iceberg: {config.Source.IcebergTable?.TableName ?? "Unknown"}",
             _ => "Unknown"
         };
     }
@@ -75,6 +76,7 @@ public class TransferExecutionService
         {
             DestinationType.SqlServer => $"SQL: {config.Destination.Table?.FullyQualifiedName ?? "Unknown"}",
             DestinationType.Parquet => $"Parquet: {config.Destination.ParquetPath ?? "Unknown"}",
+            DestinationType.Iceberg => $"Iceberg: {config.Destination.IcebergTable?.TableName ?? "Unknown"}",
             _ => "Unknown"
         };
     }

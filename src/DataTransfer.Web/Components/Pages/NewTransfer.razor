@@ -7,6 +7,7 @@
 @inject TransferExecutionService ExecutionService
 @inject DatabaseMetadataService MetadataService
 @inject ParquetFileService ParquetFileService
+@inject IcebergTableService IcebergTableService
 @inject TransferProfileService ProfileService
 @inject NavigationManager Navigation
 @inject IConfiguration Configuration
@@ -50,6 +51,9 @@
                 <InputSelect @bind-Value="_config.TransferType" class="form-select" @onchange="OnTransferTypeChanged">
                     <option value="@TransferType.SqlToParquet">SQL Server → Parquet (Export)</option>
                     <option value="@TransferType.ParquetToSql">Parquet → SQL Server (Import)</option>
+                    <option value="@TransferType.SqlToIceberg">SQL Server → Iceberg (Export)</option>
+                    <option value="@TransferType.IcebergToSql">Iceberg → SQL Server (Import)</option>
+                    <option value="@TransferType.SqlToIcebergIncremental">SQL Server → Iceberg → SQL Server (Incremental Sync)</option>
                 </InputSelect>
             </div>
 
@@ -358,6 +362,178 @@
                 </div>
             }
 
+            @* Iceberg Transfer Types *@
+            @if (_config.TransferType == TransferType.SqlToIceberg || _config.TransferType == TransferType.SqlToIcebergIncremental)
+            {
+                @* SQL Source for Iceberg transfers *@
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">SQL Server Source</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Connection String</label>
+                            <input @bind="_sourceConnectionString" class="form-control" placeholder="Server=localhost;Database=MyDb;Integrated Security=true;" />
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label">Database</label>
+                                <input @bind="_sourceDatabase" class="form-control" placeholder="MyDatabase" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Schema</label>
+                                <input @bind="_sourceSchema" class="form-control" placeholder="dbo" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Table</label>
+                                <input @bind="_sourceTable" class="form-control" placeholder="MyTable" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @* Iceberg Destination *@
+                <div class="card mb-3">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Iceberg Destination</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Iceberg Table Name</label>
+                            <input @bind="_icebergTableName" class="form-control" placeholder="my_iceberg_table" />
+                            <div class="form-text">Name for the Iceberg table (will be created if it doesn't exist)</div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (_config.TransferType == TransferType.IcebergToSql)
+            {
+                @* Iceberg Source *@
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Iceberg Source</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Iceberg Table</label>
+                            <div class="d-flex gap-2 align-items-start">
+                                <div class="flex-grow-1">
+                                    <select @bind="_sourceIcebergTable" class="form-select">
+                                        <option value="">-- Select Iceberg Table --</option>
+                                        @foreach (var table in _availableIcebergTables)
+                                        {
+                                            <option value="@table.TableName">@table.DisplayName</option>
+                                        }
+                                    </select>
+                                    @if (_availableIcebergTables.Any())
+                                    {
+                                        <div class="form-text text-muted">
+                                            <small>@_availableIcebergTables.Count table(s) available in Iceberg warehouse</small>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="form-text text-warning">
+                                            <small>⚠️ No Iceberg tables found. Export some data using SQL→Iceberg first.</small>
+                                        </div>
+                                    }
+                                </div>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="RefreshIcebergTables">
+                                    <span class="bi bi-arrow-clockwise"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @* SQL Destination *@
+                <div class="card mb-3">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">SQL Server Destination</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Connection String</label>
+                            <input @bind="_destConnectionString" class="form-control" placeholder="Server=localhost;Database=MyDb;Integrated Security=true;" />
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label">Database</label>
+                                <input @bind="_destDatabase" class="form-control" placeholder="MyDatabase" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Schema</label>
+                                <input @bind="_destSchema" class="form-control" placeholder="dbo" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Table</label>
+                                <input @bind="_destTable" class="form-control" placeholder="MyTable" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (_config.TransferType == TransferType.SqlToIcebergIncremental)
+            {
+                @* SQL Destination for Incremental Sync *@
+                <div class="card mb-3">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">SQL Server Destination (Target)</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Connection String</label>
+                            <input @bind="_destConnectionString" class="form-control" placeholder="Server=localhost;Database=MyDb;Integrated Security=true;" />
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label">Database</label>
+                                <input @bind="_destDatabase" class="form-control" placeholder="MyDatabase" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Schema</label>
+                                <input @bind="_destSchema" class="form-control" placeholder="dbo" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Table</label>
+                                <input @bind="_destTable" class="form-control" placeholder="MyTable" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @* Incremental Sync Configuration *@
+                <div class="card mb-3 border-info">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">Incremental Sync Options</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Primary Key Column *</label>
+                                <input @bind="_incrementalPrimaryKey" class="form-control" placeholder="Id" />
+                                <div class="form-text">Column that uniquely identifies rows (e.g., Id, CustomerID)</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Watermark Column *</label>
+                                <input @bind="_incrementalWatermark" class="form-control" placeholder="UpdatedAt" />
+                                <div class="form-text">Timestamp column to track changes (e.g., UpdatedAt, ModifiedDate)</div>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <label class="form-label">Merge Strategy</label>
+                            <select @bind="_incrementalMergeStrategy" class="form-select">
+                                <option value="upsert">Upsert (Insert or Update)</option>
+                                <option value="append">Append (Insert Only)</option>
+                            </select>
+                            <div class="form-text">How to handle existing rows in the target table</div>
+                        </div>
+                    </div>
+                </div>
+            }
+
             <div class="d-grid gap-2 d-md-flex justify-content-md-between">
                 <button type="button" class="btn btn-outline-primary" @onclick="ShowSaveProfileDialog" disabled="@_isProcessing">
                     <span class="bi bi-save me-2"></span>
@@ -513,6 +689,14 @@
     private bool _profileSaveSuccess;
     private string? _profileSaveMessage;
 
+    // Iceberg fields
+    private string _icebergTableName = "";
+    private string _sourceIcebergTable = "";
+    private List<IcebergTableInfo> _availableIcebergTables = new();
+    private string _incrementalPrimaryKey = "";
+    private string _incrementalWatermark = "";
+    private string _incrementalMergeStrategy = "upsert";
+
     protected override async Task OnInitializedAsync()
     {
         // Load available profiles
@@ -539,11 +723,19 @@
 
         // Load available Parquet files
         RefreshParquetFiles();
+
+        // Load available Iceberg tables
+        RefreshIcebergTables();
     }
 
     private void RefreshParquetFiles()
     {
         _availableParquetFiles = ParquetFileService.GetAvailableParquetFiles();
+    }
+
+    private void RefreshIcebergTables()
+    {
+        _availableIcebergTables = IcebergTableService.GetAvailableTables();
     }
 
     private async Task LoadRecentConnection(string connectionString)
@@ -934,46 +1126,101 @@
             _config.Source = new SourceConfiguration();
             _config.Destination = new DestinationConfiguration();
 
-            // Configure source
-            if (_config.TransferType == TransferType.SqlToParquet)
+            // Configure based on transfer type
+            switch (_config.TransferType)
             {
-                _config.Source.Type = SourceType.SqlServer;
-                _config.Source.ConnectionString = _sourceConnectionString;
-                _config.Source.Table = new TableIdentifier
-                {
-                    Database = _sourceDatabase,
-                    Schema = _sourceSchema,
-                    Table = _sourceTable
-                };
-            }
-            else
-            {
-                _config.Source.Type = SourceType.Parquet;
-                _config.Source.ParquetPath = _sourceParquetPath;
-            }
+                case TransferType.SqlToParquet:
+                    _config.Source.Type = SourceType.SqlServer;
+                    _config.Source.ConnectionString = _sourceConnectionString;
+                    _config.Source.Table = new TableIdentifier
+                    {
+                        Database = _sourceDatabase,
+                        Schema = _sourceSchema,
+                        Table = _sourceTable
+                    };
+                    _config.Destination.Type = DestinationType.Parquet;
+                    var parquetPath = _destParquetPath;
+                    if (!string.IsNullOrEmpty(parquetPath) && !parquetPath.EndsWith(".parquet", StringComparison.OrdinalIgnoreCase))
+                    {
+                        parquetPath += ".parquet";
+                    }
+                    _config.Destination.ParquetPath = parquetPath;
+                    break;
 
-            // Configure destination
-            if (_config.TransferType == TransferType.ParquetToSql)
-            {
-                _config.Destination.Type = DestinationType.SqlServer;
-                _config.Destination.ConnectionString = _destConnectionString;
-                _config.Destination.Table = new TableIdentifier
-                {
-                    Database = _destDatabase,
-                    Schema = _destSchema,
-                    Table = _destTable
-                };
-            }
-            else
-            {
-                _config.Destination.Type = DestinationType.Parquet;
-                // Ensure .parquet extension
-                var parquetPath = _destParquetPath;
-                if (!string.IsNullOrEmpty(parquetPath) && !parquetPath.EndsWith(".parquet", StringComparison.OrdinalIgnoreCase))
-                {
-                    parquetPath += ".parquet";
-                }
-                _config.Destination.ParquetPath = parquetPath;
+                case TransferType.ParquetToSql:
+                    _config.Source.Type = SourceType.Parquet;
+                    _config.Source.ParquetPath = _sourceParquetPath;
+                    _config.Destination.Type = DestinationType.SqlServer;
+                    _config.Destination.ConnectionString = _destConnectionString;
+                    _config.Destination.Table = new TableIdentifier
+                    {
+                        Database = _destDatabase,
+                        Schema = _destSchema,
+                        Table = _destTable
+                    };
+                    break;
+
+                case TransferType.SqlToIceberg:
+                    _config.Source.Type = SourceType.SqlServer;
+                    _config.Source.ConnectionString = _sourceConnectionString;
+                    _config.Source.Table = new TableIdentifier
+                    {
+                        Database = _sourceDatabase,
+                        Schema = _sourceSchema,
+                        Table = _sourceTable
+                    };
+                    _config.Destination.Type = DestinationType.Iceberg;
+                    _config.Destination.IcebergTable = new IcebergTransferConfiguration
+                    {
+                        TableName = _icebergTableName
+                    };
+                    break;
+
+                case TransferType.IcebergToSql:
+                    _config.Source.Type = SourceType.Iceberg;
+                    _config.Source.IcebergTable = new IcebergTransferConfiguration
+                    {
+                        TableName = _sourceIcebergTable
+                    };
+                    _config.Destination.Type = DestinationType.SqlServer;
+                    _config.Destination.ConnectionString = _destConnectionString;
+                    _config.Destination.Table = new TableIdentifier
+                    {
+                        Database = _destDatabase,
+                        Schema = _destSchema,
+                        Table = _destTable
+                    };
+                    break;
+
+                case TransferType.SqlToIcebergIncremental:
+                    _config.Source.Type = SourceType.SqlServer;
+                    _config.Source.ConnectionString = _sourceConnectionString;
+                    _config.Source.Table = new TableIdentifier
+                    {
+                        Database = _sourceDatabase,
+                        Schema = _sourceSchema,
+                        Table = _sourceTable
+                    };
+                    _config.Destination.Type = DestinationType.Iceberg;
+                    _config.Destination.IcebergTable = new IcebergTransferConfiguration
+                    {
+                        TableName = _icebergTableName,
+                        IncrementalSync = new IncrementalSyncOptions
+                        {
+                            PrimaryKeyColumn = _incrementalPrimaryKey,
+                            WatermarkColumn = _incrementalWatermark,
+                            MergeStrategy = _incrementalMergeStrategy
+                        }
+                    };
+                    // Also set destination SQL Server for incremental sync
+                    _config.Destination.ConnectionString = _destConnectionString;
+                    _config.Destination.Table = new TableIdentifier
+                    {
+                        Database = _destDatabase,
+                        Schema = _destSchema,
+                        Table = _destTable
+                    };
+                    break;
             }
 
             var result = await ExecutionService.ExecuteAsync(_config, _currentTransferId);
@@ -1097,45 +1344,102 @@
     private void BuildConfigurationFromForm()
     {
         // This method is called from SaveProfile to capture current form state
-        // Configure source
-        if (_config.TransferType == TransferType.SqlToParquet)
-        {
-            _config.Source.Type = SourceType.SqlServer;
-            _config.Source.ConnectionString = _sourceConnectionString;
-            _config.Source.Table = new TableIdentifier
-            {
-                Database = _sourceDatabase,
-                Schema = _sourceSchema,
-                Table = _sourceTable
-            };
-        }
-        else
-        {
-            _config.Source.Type = SourceType.Parquet;
-            _config.Source.ParquetPath = _sourceParquetPath;
-        }
+        _config.Source = new SourceConfiguration();
+        _config.Destination = new DestinationConfiguration();
 
-        // Configure destination
-        if (_config.TransferType == TransferType.ParquetToSql)
+        switch (_config.TransferType)
         {
-            _config.Destination.Type = DestinationType.SqlServer;
-            _config.Destination.ConnectionString = _destConnectionString;
-            _config.Destination.Table = new TableIdentifier
-            {
-                Database = _destDatabase,
-                Schema = _destSchema,
-                Table = _destTable
-            };
-        }
-        else
-        {
-            _config.Destination.Type = DestinationType.Parquet;
-            var parquetPath = _destParquetPath;
-            if (!string.IsNullOrEmpty(parquetPath) && !parquetPath.EndsWith(".parquet", StringComparison.OrdinalIgnoreCase))
-            {
-                parquetPath += ".parquet";
-            }
-            _config.Destination.ParquetPath = parquetPath;
+            case TransferType.SqlToParquet:
+                _config.Source.Type = SourceType.SqlServer;
+                _config.Source.ConnectionString = _sourceConnectionString;
+                _config.Source.Table = new TableIdentifier
+                {
+                    Database = _sourceDatabase,
+                    Schema = _sourceSchema,
+                    Table = _sourceTable
+                };
+                _config.Destination.Type = DestinationType.Parquet;
+                var parquetPath = _destParquetPath;
+                if (!string.IsNullOrEmpty(parquetPath) && !parquetPath.EndsWith(".parquet", StringComparison.OrdinalIgnoreCase))
+                {
+                    parquetPath += ".parquet";
+                }
+                _config.Destination.ParquetPath = parquetPath;
+                break;
+
+            case TransferType.ParquetToSql:
+                _config.Source.Type = SourceType.Parquet;
+                _config.Source.ParquetPath = _sourceParquetPath;
+                _config.Destination.Type = DestinationType.SqlServer;
+                _config.Destination.ConnectionString = _destConnectionString;
+                _config.Destination.Table = new TableIdentifier
+                {
+                    Database = _destDatabase,
+                    Schema = _destSchema,
+                    Table = _destTable
+                };
+                break;
+
+            case TransferType.SqlToIceberg:
+                _config.Source.Type = SourceType.SqlServer;
+                _config.Source.ConnectionString = _sourceConnectionString;
+                _config.Source.Table = new TableIdentifier
+                {
+                    Database = _sourceDatabase,
+                    Schema = _sourceSchema,
+                    Table = _sourceTable
+                };
+                _config.Destination.Type = DestinationType.Iceberg;
+                _config.Destination.IcebergTable = new IcebergTransferConfiguration
+                {
+                    TableName = _icebergTableName
+                };
+                break;
+
+            case TransferType.IcebergToSql:
+                _config.Source.Type = SourceType.Iceberg;
+                _config.Source.IcebergTable = new IcebergTransferConfiguration
+                {
+                    TableName = _sourceIcebergTable
+                };
+                _config.Destination.Type = DestinationType.SqlServer;
+                _config.Destination.ConnectionString = _destConnectionString;
+                _config.Destination.Table = new TableIdentifier
+                {
+                    Database = _destDatabase,
+                    Schema = _destSchema,
+                    Table = _destTable
+                };
+                break;
+
+            case TransferType.SqlToIcebergIncremental:
+                _config.Source.Type = SourceType.SqlServer;
+                _config.Source.ConnectionString = _sourceConnectionString;
+                _config.Source.Table = new TableIdentifier
+                {
+                    Database = _sourceDatabase,
+                    Schema = _sourceSchema,
+                    Table = _sourceTable
+                };
+                _config.Destination.Type = DestinationType.Iceberg;
+                _config.Destination.IcebergTable = new IcebergTransferConfiguration
+                {
+                    TableName = _icebergTableName,
+                    IncrementalSync = new IncrementalSyncOptions
+                    {
+                        PrimaryKeyColumn = _incrementalPrimaryKey,
+                        WatermarkColumn = _incrementalWatermark,
+                        MergeStrategy = _incrementalMergeStrategy
+                    }
+                };
+                _config.Destination.ConnectionString = _destConnectionString;
+                _config.Destination.Table = new TableIdentifier
+                {
+                    Database = _destDatabase,
+                    Schema = _destSchema,
+                    Table = _destTable
+                };
+                break;
         }
     }
 }

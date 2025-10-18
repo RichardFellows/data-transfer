@@ -67,6 +67,7 @@ builder.Services.AddSingleton<ParquetFileService>(sp =>
     new ParquetFileService(sp.GetRequiredService<ILogger<ParquetFileService>>(), "./parquet-files"));
 builder.Services.AddSingleton<TransferProfileService>(sp =>
     new TransferProfileService(sp.GetRequiredService<ILogger<TransferProfileService>>(), "./profiles"));
+builder.Services.AddSingleton<IcebergTableService>();
 
 var app = builder.Build();
 
