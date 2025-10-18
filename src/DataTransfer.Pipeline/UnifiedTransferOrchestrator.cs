@@ -199,11 +199,14 @@ public class UnifiedTransferOrchestrator
         var sourceTable = $"{config.Source.Table!.Schema}.{config.Source.Table!.Table}";
 
         // Export using SqlServerToIcebergExporter
+        var maxRecordsPerFile = config.Destination.IcebergTable!.MaxRecordsPerFile;
+
         var exportResult = await _icebergExporter.ExportTableAsync(
             config.Source.ConnectionString!,
             sourceTable,
             icebergTableName,
             query: null,
+            maxRecordsPerFile,
             cancellationToken);
 
         if (!exportResult.Success)

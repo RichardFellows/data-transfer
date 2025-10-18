@@ -295,6 +295,76 @@ public class IcebergTableWriterTests : IDisposable
         Assert.Equal(20, metadata.Schemas[0].Fields[1].Id);
     }
 
+    [Fact]
+    public async Task Should_Split_Large_Dataset_Into_Multiple_Files_When_Streaming()
+    {
+        // Arrange
+        var writer = new IcebergTableWriter(_catalog, NullLogger<IcebergTableWriter>.Instance);
+        var schema = CreateSimpleSchema();
+
+        // Create 150 records - should split into 2 files with maxRecordsPerFile=100
+        var largeData = CreateStreamingData(150);
+
+        // Act
+        var result = await writer.WriteTableAsync(
+            "streaming_multifile_test",
+            schema,
+            largeData,
+            maxRecordsPerFile: 100);
+
+        // Assert
+        Assert.True(result.Success, $"Write failed: {result.ErrorMessage}");
+        Assert.Equal(150, result.RecordCount);
+        Assert.Equal(2, result.DataFileCount); // 100 in first file, 50 in second
+
+        // Verify both Parquet files exist
+        var tablePath = _catalog.GetTablePath("streaming_multifile_test");
+        var dataFiles = Directory.GetFiles(Path.Combine(tablePath, "data"), "*.parquet");
+        Assert.Equal(2, dataFiles.Length);
+    }
+
+    [Fact]
+    public async Task Should_Stream_Large_Dataset_Without_Loading_Into_Memory()
+    {
+        // Arrange
+        var writer = new IcebergTableWriter(_catalog, NullLogger<IcebergTableWriter>.Instance);
+        var schema = CreateSimpleSchema();
+
+        // Stream 1000 records
+        var streamingData = CreateStreamingData(1000);
+
+        // Act
+        var result = await writer.WriteTableAsync(
+            "streaming_performance_test",
+            schema,
+            streamingData,
+            maxRecordsPerFile: 500);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Equal(1000, result.RecordCount);
+        Assert.Equal(2, result.DataFileCount); // 500 per file
+
+        // Verify table is loadable
+        var metadata = _catalog.LoadTable("streaming_performance_test");
+        Assert.NotNull(metadata);
+        Assert.Single(metadata.Snapshots);
+    }
+
+    // Helper method to create streaming data
+    private async IAsyncEnumerable<Dictionary<string, object>> CreateStreamingData(int count)
+    {
+        for (int i = 1; i <= count; i++)
+        {
+            yield return new Dictionary<string, object>
+            {
+                ["id"] = i,
+                ["value"] = $"streaming_row_{i}"
+            };
+        }
+        await Task.CompletedTask;
+    }
+
     // Helper method
     private IcebergSchema CreateSimpleSchema()
     {

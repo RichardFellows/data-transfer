@@ -23,23 +23,25 @@ public class IcebergTableWriter
     }
 
     /// <summary>
-    /// Writes a complete Iceberg table from schema and data
+    /// Writes a complete Iceberg table from schema and data (streaming version)
     /// </summary>
     /// <param name="tableName">Name of the table to create</param>
     /// <param name="schema">Iceberg schema with field-ids</param>
-    /// <param name="data">List of records as dictionaries (field name → value)</param>
+    /// <param name="data">Async stream of records as dictionaries (field name → value)</param>
+    /// <param name="maxRecordsPerFile">Maximum records per Parquet file (default: 1,000,000)</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Result containing success status and metadata</returns>
     public async Task<IcebergWriteResult> WriteTableAsync(
         string tableName,
         IcebergSchema schema,
-        List<Dictionary<string, object>> data,
+        IAsyncEnumerable<Dictionary<string, object>> data,
+        int maxRecordsPerFile = 1_000_000,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            _logger.LogInformation("Starting Iceberg table write for {Table} with {RecordCount} records",
-                tableName, data.Count);
+            _logger.LogInformation("Starting streaming Iceberg table write for {Table}",
+                tableName);
 
             // Validate schema
             if (schema.Fields == null || schema.Fields.Count == 0)
@@ -55,8 +57,21 @@ public class IcebergTableWriter
             var tablePath = _catalog.InitializeTable(tableName);
             _logger.LogDebug("Initialized table structure at {TablePath}", tablePath);
 
-            // Guard against empty data - empty tables should not be created
-            if (data.Count == 0)
+            // 2. Generate snapshot ID (timestamp-based)
+            var snapshotId = GenerateSnapshotId();
+
+            // 3. Write Parquet data files (streaming)
+            var dataFiles = await WriteDataFilesStreamingAsync(
+                tablePath,
+                schema,
+                data,
+                maxRecordsPerFile,
+                cancellationToken);
+
+            _logger.LogDebug("Wrote {FileCount} data files", dataFiles.Count);
+
+            // Guard against empty data
+            if (dataFiles.Count == 0)
             {
                 _logger.LogError("Cannot write empty table {Table} - no data provided", tableName);
                 return new IcebergWriteResult
@@ -65,13 +80,6 @@ public class IcebergTableWriter
                     ErrorMessage = "Cannot create table with no data. Ensure source contains at least one row."
                 };
             }
-
-            // 2. Generate snapshot ID (timestamp-based)
-            var snapshotId = GenerateSnapshotId();
-
-            // 3. Write Parquet data files
-            var dataFiles = await WriteDataFilesAsync(tablePath, schema, data, cancellationToken);
-            _logger.LogDebug("Wrote {FileCount} data files", dataFiles.Count);
 
             // 4. Generate manifest file
             var manifestPath = GenerateManifest(tablePath, dataFiles, snapshotId);
@@ -128,7 +136,120 @@ public class IcebergTableWriter
     }
 
     /// <summary>
-    /// Writes data to Parquet files with Iceberg-compliant schema
+    /// Writes a complete Iceberg table from schema and data (list version - for backward compatibility)
+    /// </summary>
+    /// <param name="tableName">Name of the table to create</param>
+    /// <param name="schema">Iceberg schema with field-ids</param>
+    /// <param name="data">List of records as dictionaries (field name → value)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Result containing success status and metadata</returns>
+    public async Task<IcebergWriteResult> WriteTableAsync(
+        string tableName,
+        IcebergSchema schema,
+        List<Dictionary<string, object>> data,
+        CancellationToken cancellationToken = default)
+    {
+        // Delegate to streaming version
+        return await WriteTableAsync(
+            tableName,
+            schema,
+            ToAsyncEnumerable(data),
+            maxRecordsPerFile: 1_000_000,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes data to Parquet files with Iceberg-compliant schema (streaming version)
+    /// Splits large datasets into multiple files based on maxRecordsPerFile
+    /// </summary>
+    private async Task<List<DataFileMetadata>> WriteDataFilesStreamingAsync(
+        string tablePath,
+        IcebergSchema schema,
+        IAsyncEnumerable<Dictionary<string, object>> data,
+        int maxRecordsPerFile,
+        CancellationToken cancellationToken)
+    {
+        var dataFiles = new List<DataFileMetadata>();
+        var dataDir = Path.Combine(tablePath, "data");
+
+        IcebergParquetWriter? currentWriter = null;
+        string? currentFilePath = null;
+        long currentFileRecordCount = 0;
+        long totalRecordCount = 0;
+
+        try
+        {
+            await foreach (var record in data.WithCancellation(cancellationToken))
+            {
+                // Start new file if needed
+                if (currentWriter == null || currentFileRecordCount >= maxRecordsPerFile)
+                {
+                    // Close previous file
+                    if (currentWriter != null)
+                    {
+                        currentWriter.Close();
+
+                        var fileInfo = new FileInfo(currentFilePath!);
+                        dataFiles.Add(new DataFileMetadata
+                        {
+                            FilePath = $"data/{Path.GetFileName(currentFilePath)}",
+                            FileSizeInBytes = fileInfo.Length,
+                            RecordCount = currentFileRecordCount
+                        });
+
+                        _logger.LogDebug("Wrote Parquet file {FileName} with {RecordCount} records ({FileSize} bytes)",
+                            Path.GetFileName(currentFilePath), currentFileRecordCount, fileInfo.Length);
+                    }
+
+                    // Start new file
+                    currentFilePath = Path.Combine(dataDir, $"data-{Guid.NewGuid()}.parquet");
+                    currentWriter = new IcebergParquetWriter(currentFilePath, schema);
+                    currentFileRecordCount = 0;
+                }
+
+                // Convert dictionary to typed values array matching schema order
+                var values = new object[schema.Fields.Count];
+                for (int i = 0; i < schema.Fields.Count; i++)
+                {
+                    var fieldName = schema.Fields[i].Name;
+                    values[i] = record.ContainsKey(fieldName) ? record[fieldName] : null!;
+                }
+
+                currentWriter.WriteRow(values);
+                currentFileRecordCount++;
+                totalRecordCount++;
+            }
+
+            // Close final file
+            if (currentWriter != null && currentFileRecordCount > 0)
+            {
+                currentWriter.Close();
+
+                var fileInfo = new FileInfo(currentFilePath!);
+                dataFiles.Add(new DataFileMetadata
+                {
+                    FilePath = $"data/{Path.GetFileName(currentFilePath)}",
+                    FileSizeInBytes = fileInfo.Length,
+                    RecordCount = currentFileRecordCount
+                });
+
+                _logger.LogDebug("Wrote final Parquet file {FileName} with {RecordCount} records ({FileSize} bytes)",
+                    Path.GetFileName(currentFilePath), currentFileRecordCount, fileInfo.Length);
+            }
+
+            _logger.LogInformation("Streaming write complete: {TotalRecords} records across {FileCount} files",
+                totalRecordCount, dataFiles.Count);
+
+            return dataFiles;
+        }
+        finally
+        {
+            currentWriter?.Close();
+        }
+    }
+
+    /// <summary>
+    /// Writes data to Parquet files with Iceberg-compliant schema (legacy list-based version)
     /// </summary>
     private async Task<List<DataFileMetadata>> WriteDataFilesAsync(
         string tablePath,
@@ -171,6 +292,19 @@ public class IcebergTableWriter
         });
 
         return await Task.FromResult(dataFiles);
+    }
+
+    /// <summary>
+    /// Helper to convert List to IAsyncEnumerable
+    /// </summary>
+    private async IAsyncEnumerable<Dictionary<string, object>> ToAsyncEnumerable(
+        List<Dictionary<string, object>> data)
+    {
+        foreach (var item in data)
+        {
+            yield return item;
+        }
+        await Task.CompletedTask;
     }
 
     /// <summary>

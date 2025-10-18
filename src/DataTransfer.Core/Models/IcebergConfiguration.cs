@@ -11,6 +11,12 @@ public class IcebergTransferConfiguration
     public string TableName { get; set; } = string.Empty;
 
     /// <summary>
+    /// Maximum records per Parquet file (default: 1,000,000)
+    /// Larger tables will be split across multiple files for better memory efficiency
+    /// </summary>
+    public int MaxRecordsPerFile { get; set; } = 1_000_000;
+
+    /// <summary>
     /// Optional incremental sync configuration
     /// </summary>
     public IncrementalSyncOptions? IncrementalSync { get; set; }

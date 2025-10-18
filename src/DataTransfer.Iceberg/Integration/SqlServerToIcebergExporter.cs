@@ -29,6 +29,7 @@ public class SqlServerToIcebergExporter
     /// <param name="sourceTableName">Source SQL Server table name</param>
     /// <param name="icebergTableName">Destination Iceberg table name</param>
     /// <param name="query">Optional custom query (if null, selects all from table)</param>
+    /// <param name="maxRecordsPerFile">Maximum records per Parquet file (default: 1,000,000)</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Result containing success status and metadata</returns>
     public async Task<IcebergWriteResult> ExportTableAsync(
@@ -36,6 +37,7 @@ public class SqlServerToIcebergExporter
         string sourceTableName,
         string icebergTableName,
         string? query = null,
+        int maxRecordsPerFile = 1_000_000,
         CancellationToken cancellationToken = default)
     {
         try
@@ -61,25 +63,18 @@ public class SqlServerToIcebergExporter
             // Infer Iceberg schema from SQL Server schema
             var schema = InferIcebergSchemaFromReader(reader);
 
-            // Read all data into memory (TODO: support streaming for large tables)
-            var data = new List<Dictionary<string, object>>();
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var row = new Dictionary<string, object>();
-                for (int i = 0; i < reader.FieldCount; i++)
-                {
-                    var fieldName = reader.GetName(i);
-                    row[fieldName] = reader.IsDBNull(i) ? null! : reader.GetValue(i);
-                }
-                data.Add(row);
-            }
+            // Stream data directly to Iceberg without loading into memory
+            _logger.LogInformation("Starting streaming export from SQL Server to Iceberg");
 
-            _logger.LogInformation("Read {RowCount} rows from SQL Server", data.Count);
-
-            // Write to Iceberg
             var writerLogger = (ILogger<IcebergTableWriter>)(object)_logger;
             var writer = new IcebergTableWriter(_catalog, writerLogger);
-            var result = await writer.WriteTableAsync(icebergTableName, schema, data, cancellationToken);
+
+            var result = await writer.WriteTableAsync(
+                icebergTableName,
+                schema,
+                StreamDataFromReader(reader, cancellationToken),
+                maxRecordsPerFile,
+                cancellationToken);
 
             if (result.Success)
             {
@@ -174,5 +169,34 @@ public class SqlServerToIcebergExporter
                  type == typeof(DateTimeOffset) ? SqlDbType.DateTimeOffset :
                  SqlDbType.NVarChar // Default to string
         };
+    }
+
+    /// <summary>
+    /// Streams data from SqlDataReader as IAsyncEnumerable for memory-efficient processing
+    /// </summary>
+    private async IAsyncEnumerable<Dictionary<string, object>> StreamDataFromReader(
+        SqlDataReader reader,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        long rowCount = 0;
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var row = new Dictionary<string, object>();
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                var fieldName = reader.GetName(i);
+                row[fieldName] = reader.IsDBNull(i) ? null! : reader.GetValue(i);
+            }
+
+            rowCount++;
+            if (rowCount % 100_000 == 0)
+            {
+                _logger.LogDebug("Streamed {RowCount} rows from SQL Server", rowCount);
+            }
+
+            yield return row;
+        }
+
+        _logger.LogInformation("Completed streaming {TotalRows} rows from SQL Server", rowCount);
     }
 }
