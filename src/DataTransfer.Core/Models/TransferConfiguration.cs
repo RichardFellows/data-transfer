@@ -24,6 +24,11 @@ public class TransferConfiguration
     /// Optional partitioning configuration
     /// </summary>
     public PartitioningConfiguration? Partitioning { get; set; }
+
+    /// <summary>
+    /// Dry-run mode: validate and preview transfer without executing
+    /// </summary>
+    public bool DryRun { get; set; } = false;
 }
 
 /// <summary>

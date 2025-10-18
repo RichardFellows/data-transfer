@@ -61,7 +61,15 @@ public class UnifiedTransferOrchestrator
 
         try
         {
-            _logger.LogInformation("Starting {TransferType} transfer", config.TransferType);
+            _logger.LogInformation("Starting {TransferType} transfer{DryRun}",
+                config.TransferType,
+                config.DryRun ? " (DRY RUN)" : "");
+
+            // Dry-run mode: preview only, don't execute
+            if (config.DryRun)
+            {
+                return await ExecuteDryRunAsync(config, result, cancellationToken);
+            }
 
             switch (config.TransferType)
             {
@@ -327,6 +335,62 @@ public class UnifiedTransferOrchestrator
             syncResult.RowsExtracted,
             syncResult.RowsImported,
             syncResult.NewWatermark);
+    }
+
+    /// <summary>
+    /// Executes a dry-run: validates configuration and estimates transfer without execution
+    /// </summary>
+    private async Task<TransferResult> ExecuteDryRunAsync(
+        TransferConfiguration config,
+        TransferResult result,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("=== DRY RUN MODE ===");
+        _logger.LogInformation("Transfer will be validated but NOT executed");
+
+        try
+        {
+            // Test connections and get row counts
+            if (config.Source.Type == SourceType.SqlServer && _sqlExtractor is SqlTableExtractor sqlExtractor)
+            {
+                var sourceTableConfig = new TableConfiguration
+                {
+                    Source = config.Source.Table!,
+                    Partitioning = config.Partitioning ?? new PartitioningConfiguration { Type = PartitionType.Static },
+                    ExtractSettings = new ExtractSettings
+                    {
+                        BatchSize = 100000,
+                        DateRange = new DateRange { StartDate = DateTime.MinValue, EndDate = DateTime.MaxValue }
+                    }
+                };
+
+                result.SourceRowCount = await sqlExtractor.GetRowCountAsync(
+                    sourceTableConfig,
+                    config.Source.ConnectionString!,
+                    cancellationToken);
+
+                _logger.LogInformation("✓ Source connection validated");
+                _logger.LogInformation("  Estimated rows to extract: {Count}", result.SourceRowCount);
+            }
+
+            result.Success = true;
+            result.EndTime = DateTime.UtcNow;
+            result.ValidationMessage = $"DRY RUN: Would transfer {result.SourceRowCount ?? 0} rows from {config.Source.Type} to {config.Destination.Type}";
+
+            _logger.LogInformation("=== DRY RUN COMPLETE ===");
+            _logger.LogInformation(result.ValidationMessage);
+            _logger.LogInformation("No data was actually transferred");
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            result.Success = false;
+            result.ErrorMessage = $"Dry-run validation failed: {ex.Message}";
+            result.EndTime = DateTime.UtcNow;
+            _logger.LogError(ex, "Dry-run validation failed");
+            throw;
+        }
     }
 
     /// <summary>
