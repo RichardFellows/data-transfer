@@ -27,6 +27,7 @@
     <ProjectReference Include="..\..\src\DataTransfer.Pipeline\DataTransfer.Pipeline.csproj" />
     <ProjectReference Include="..\..\src\DataTransfer.Core\DataTransfer.Core.csproj" />
     <ProjectReference Include="..\..\src\DataTransfer.Configuration\DataTransfer.Configuration.csproj" />
+    <ProjectReference Include="..\..\src\DataTransfer.Iceberg\DataTransfer.Iceberg.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,9 +1,16 @@
 using DataTransfer.Core.Interfaces;
 using DataTransfer.Core.Models;
+using DataTransfer.Iceberg.Catalog;
+using DataTransfer.Iceberg.ChangeDetection;
+using DataTransfer.Iceberg.Integration;
+using DataTransfer.Iceberg.Readers;
+using DataTransfer.Iceberg.Watermarks;
+using DataTransfer.Iceberg.Writers;
 using DataTransfer.Parquet;
 using DataTransfer.Pipeline;
 using DataTransfer.SqlServer;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Testcontainers.MsSql;
 using Xunit;
@@ -44,11 +51,40 @@ public class BidirectionalTransferTests : IAsyncLifetime
         var parquetExtractor = new ParquetExtractor(_parquetBasePath);
         var parquetWriter = new ParquetWriter(parquetStorage);
 
+        // Iceberg components
+        var icebergWarehousePath = Path.Combine(_parquetBasePath, "iceberg-warehouse");
+        var catalog = new FilesystemCatalog(icebergWarehousePath, loggerFactory.CreateLogger<FilesystemCatalog>());
+        var icebergExporter = new SqlServerToIcebergExporter(catalog, loggerFactory.CreateLogger<SqlServerToIcebergExporter>());
+        var watermarkStore = new FileWatermarkStore(Path.Combine(icebergWarehousePath, ".watermarks"));
+        var changeDetection = new TimestampChangeDetection("UpdatedAt"); // Default watermark column
+        var icebergAppender = new IcebergAppender(catalog, loggerFactory.CreateLogger<IcebergAppender>());
+        var icebergReader = new IcebergReader(catalog, loggerFactory.CreateLogger<IcebergReader>());
+        var sqlImporter = new SqlServerImporter(loggerFactory.CreateLogger<SqlServerImporter>());
+        var incrementalSync = new IncrementalSyncCoordinator(
+            changeDetection,
+            icebergAppender,
+            icebergReader,
+            sqlImporter,
+            watermarkStore,
+            loggerFactory.CreateLogger<IncrementalSyncCoordinator>());
+
+        // Configuration
+        var configBuilder = new ConfigurationBuilder();
+        configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Iceberg:WarehousePath"] = icebergWarehousePath
+        });
+        var configuration = configBuilder.Build();
+
         _orchestrator = new UnifiedTransferOrchestrator(
             sqlExtractor,
             parquetExtractor,
             sqlLoader,
             parquetWriter,
+            icebergExporter,
+            incrementalSync,
+            catalog,
+            configuration,
             loggerFactory.CreateLogger<UnifiedTransferOrchestrator>());
     }
 

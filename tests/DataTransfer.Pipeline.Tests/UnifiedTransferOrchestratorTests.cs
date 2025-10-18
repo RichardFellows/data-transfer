@@ -1,6 +1,9 @@
 using DataTransfer.Core.Interfaces;
 using DataTransfer.Core.Models;
+using DataTransfer.Iceberg.Catalog;
+using DataTransfer.Iceberg.Integration;
 using DataTransfer.Pipeline;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
@@ -16,22 +19,35 @@ public class UnifiedTransferOrchestratorTests
         var parquetExtractor = Mock.Of<IParquetExtractor>();
         var sqlLoader = Mock.Of<IDataLoader>();
         var parquetWriter = Mock.Of<IParquetWriter>();
+        var icebergExporter = Mock.Of<SqlServerToIcebergExporter>();
+        var incrementalSync = Mock.Of<IncrementalSyncCoordinator>();
+        var catalog = Mock.Of<FilesystemCatalog>();
+        var config = Mock.Of<IConfiguration>();
         var logger = Mock.Of<ILogger<UnifiedTransferOrchestrator>>();
 
         Assert.Throws<ArgumentNullException>(() => new UnifiedTransferOrchestrator(
-            null!, parquetExtractor, sqlLoader, parquetWriter, logger));
+            null!, parquetExtractor, sqlLoader, parquetWriter, icebergExporter, incrementalSync, catalog, config, logger));
 
         Assert.Throws<ArgumentNullException>(() => new UnifiedTransferOrchestrator(
-            sqlExtractor, null!, sqlLoader, parquetWriter, logger));
+            sqlExtractor, null!, sqlLoader, parquetWriter, icebergExporter, incrementalSync, catalog, config, logger));
 
         Assert.Throws<ArgumentNullException>(() => new UnifiedTransferOrchestrator(
-            sqlExtractor, parquetExtractor, null!, parquetWriter, logger));
+            sqlExtractor, parquetExtractor, null!, parquetWriter, icebergExporter, incrementalSync, catalog, config, logger));
 
         Assert.Throws<ArgumentNullException>(() => new UnifiedTransferOrchestrator(
-            sqlExtractor, parquetExtractor, sqlLoader, null!, logger));
+            sqlExtractor, parquetExtractor, sqlLoader, null!, icebergExporter, incrementalSync, catalog, config, logger));
 
         Assert.Throws<ArgumentNullException>(() => new UnifiedTransferOrchestrator(
-            sqlExtractor, parquetExtractor, sqlLoader, parquetWriter, null!));
+            sqlExtractor, parquetExtractor, sqlLoader, parquetWriter, null!, incrementalSync, catalog, config, logger));
+
+        Assert.Throws<ArgumentNullException>(() => new UnifiedTransferOrchestrator(
+            sqlExtractor, parquetExtractor, sqlLoader, parquetWriter, icebergExporter, null!, catalog, config, logger));
+
+        Assert.Throws<ArgumentNullException>(() => new UnifiedTransferOrchestrator(
+            sqlExtractor, parquetExtractor, sqlLoader, parquetWriter, icebergExporter, incrementalSync, null!, config, logger));
+
+        Assert.Throws<ArgumentNullException>(() => new UnifiedTransferOrchestrator(
+            sqlExtractor, parquetExtractor, sqlLoader, parquetWriter, icebergExporter, incrementalSync, catalog, null!, logger));
     }
 
     [Fact]
@@ -241,14 +257,46 @@ public class UnifiedTransferOrchestratorTests
         ITableExtractor? sqlExtractor = null,
         IParquetExtractor? parquetExtractor = null,
         IDataLoader? sqlLoader = null,
-        IParquetWriter? parquetWriter = null)
+        IParquetWriter? parquetWriter = null,
+        SqlServerToIcebergExporter? icebergExporter = null,
+        IncrementalSyncCoordinator? incrementalSync = null,
+        FilesystemCatalog? catalog = null,
+        IConfiguration? configuration = null)
     {
+        var config = configuration ?? CreateMockConfiguration();
+
         return new UnifiedTransferOrchestrator(
             sqlExtractor ?? CreateMockSqlExtractor(),
             parquetExtractor ?? CreateMockParquetExtractor(),
             sqlLoader ?? CreateMockSqlLoader(),
             parquetWriter ?? CreateMockParquetWriter(),
+            icebergExporter ?? CreateMockIcebergExporter(),
+            incrementalSync ?? CreateMockIncrementalSync(),
+            catalog ?? CreateMockCatalog(),
+            config,
             Mock.Of<ILogger<UnifiedTransferOrchestrator>>());
+    }
+
+    private static SqlServerToIcebergExporter CreateMockIcebergExporter()
+    {
+        return Mock.Of<SqlServerToIcebergExporter>();
+    }
+
+    private static IncrementalSyncCoordinator CreateMockIncrementalSync()
+    {
+        return Mock.Of<IncrementalSyncCoordinator>();
+    }
+
+    private static FilesystemCatalog CreateMockCatalog()
+    {
+        return Mock.Of<FilesystemCatalog>();
+    }
+
+    private static IConfiguration CreateMockConfiguration()
+    {
+        var mock = new Mock<IConfiguration>();
+        mock.SetupGet(x => x["Iceberg:WarehousePath"]).Returns("./iceberg-warehouse");
+        return mock.Object;
     }
 
     private static ITableExtractor CreateMockSqlExtractor()
