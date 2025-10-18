@@ -112,6 +112,39 @@ public class SqlTableExtractor : ITableExtractor
         return result;
     }
 
+    /// <summary>
+    /// Gets the row count from source table (with optional WHERE clause)
+    /// </summary>
+    public async Task<long> GetRowCountAsync(
+        TableConfiguration tableConfig,
+        string connectionString,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(tableConfig);
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new ArgumentException("Connection string cannot be empty", nameof(connectionString));
+        }
+
+        var strategy = PartitionStrategyFactory.Create(tableConfig.Partitioning);
+        var startDate = tableConfig.ExtractSettings.DateRange.StartDate;
+        var endDate = tableConfig.ExtractSettings.DateRange.EndDate;
+
+        var query = _queryBuilder.BuildCountQuery(tableConfig, strategy, startDate, endDate);
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = new SqlCommand(query, connection)
+        {
+            CommandTimeout = 300 // 5 minutes
+        };
+
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result != null ? Convert.ToInt64(result) : 0;
+    }
+
     private static void WriteValue(Utf8JsonWriter writer, SqlDataReader reader, int ordinal)
     {
         var value = reader.GetValue(ordinal);

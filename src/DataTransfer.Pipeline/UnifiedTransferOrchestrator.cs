@@ -3,6 +3,7 @@ using DataTransfer.Core.Models;
 using DataTransfer.Iceberg.Catalog;
 using DataTransfer.Iceberg.Integration;
 using DataTransfer.Iceberg.Models;
+using DataTransfer.SqlServer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -94,6 +95,10 @@ public class UnifiedTransferOrchestrator
 
             result.Success = true;
             result.EndTime = DateTime.UtcNow;
+
+            // Perform row count verification
+            await VerifyRowCountsAsync(config, result, cancellationToken);
+
             _logger.LogInformation("Transfer completed successfully in {Duration}ms",
                 result.Duration.TotalMilliseconds);
 
@@ -322,5 +327,82 @@ public class UnifiedTransferOrchestrator
             syncResult.RowsExtracted,
             syncResult.RowsImported,
             syncResult.NewWatermark);
+    }
+
+    /// <summary>
+    /// Verifies row counts match between source and destination
+    /// </summary>
+    private async Task VerifyRowCountsAsync(
+        TransferConfiguration config,
+        TransferResult result,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Only verify for SQL→SQL and Parquet→SQL transfers
+            if (config.Source.Type == SourceType.SqlServer && _sqlExtractor is SqlTableExtractor sqlExtractor)
+            {
+                // Get source count (using same WHERE clause and partitioning as the actual transfer)
+                var sourceTableConfig = new TableConfiguration
+                {
+                    Source = config.Source.Table!,
+                    Partitioning = config.Partitioning ?? new PartitioningConfiguration
+                    {
+                        Type = PartitionType.Static
+                    },
+                    ExtractSettings = new ExtractSettings
+                    {
+                        BatchSize = 100000,
+                        DateRange = new DateRange
+                        {
+                            StartDate = DateTime.MinValue,
+                            EndDate = DateTime.MaxValue
+                        },
+                        // Note: WhereClause should come from config, but config doesn't have it
+                        // This is a limitation - will only count all rows for now
+                        WhereClause = null,
+                        RowLimit = null  // Don't apply row limit to count query
+                    }
+                };
+
+                result.SourceRowCount = await sqlExtractor.GetRowCountAsync(
+                    sourceTableConfig,
+                    config.Source.ConnectionString!,
+                    cancellationToken);
+
+                _logger.LogInformation("Source row count: {Count}", result.SourceRowCount);
+            }
+
+            if (config.Destination.Type == DestinationType.SqlServer && _sqlLoader is SqlDataLoader sqlLoader)
+            {
+                // Get destination count
+                var destTableName = $"[{config.Destination.Table!.Database}].[{config.Destination.Table!.Schema}].[{config.Destination.Table!.Table}]";
+
+                result.DestinationRowCount = await sqlLoader.GetRowCountAsync(
+                    config.Destination.ConnectionString!,
+                    destTableName,
+                    cancellationToken);
+
+                _logger.LogInformation("Destination row count: {Count}", result.DestinationRowCount);
+            }
+
+            // Verify counts match
+            if (result.CountsMatch)
+            {
+                result.ValidationMessage = $"✓ Row count verification passed: {result.SourceRowCount} rows";
+                _logger.LogInformation(result.ValidationMessage);
+            }
+            else if (result.SourceRowCount.HasValue && result.DestinationRowCount.HasValue)
+            {
+                var difference = result.CountDifference!.Value;
+                result.ValidationMessage = $"⚠ Row count mismatch: Source={result.SourceRowCount}, Destination={result.DestinationRowCount}, Difference={difference}";
+                _logger.LogWarning(result.ValidationMessage);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Row count verification failed: {Error}", ex.Message);
+            result.ValidationMessage = $"Row count verification failed: {ex.Message}";
+        }
     }
 }

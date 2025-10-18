@@ -127,6 +127,39 @@ public class SqlDataLoader : IDataLoader
         return result;
     }
 
+    /// <summary>
+    /// Gets the row count from destination table
+    /// </summary>
+    public async Task<long> GetRowCountAsync(
+        string connectionString,
+        string tableName,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new ArgumentException("Connection string cannot be empty", nameof(connectionString));
+        }
+
+        if (string.IsNullOrWhiteSpace(tableName))
+        {
+            throw new ArgumentException("Table name cannot be empty", nameof(tableName));
+        }
+
+        // Simple count query
+        var query = $"SELECT COUNT(*) FROM {tableName}";
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = new SqlCommand(query, connection)
+        {
+            CommandTimeout = 300 // 5 minutes
+        };
+
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result != null ? Convert.ToInt64(result) : 0;
+    }
+
     private static object GetValue(JsonElement element)
     {
         return element.ValueKind switch
