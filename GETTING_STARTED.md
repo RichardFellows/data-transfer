@@ -244,7 +244,45 @@ Source Database: IcebergDemo_Source
   - Products: 10 records
 ```
 
-### Step 4: Configure Tables for Transfer
+### Step 4: Discover Your Database Schema (Optional but Recommended)
+
+Before manually configuring tables, use the schema discovery feature to see what's available:
+
+```bash
+dotnet run --project src/DataTransfer.Console -- \
+  --discover "Server=localhost,1433;Database=IcebergDemo_Source;User Id=sa;Password=IcebergDemo@2024;TrustServerCertificate=true"
+```
+
+**This will show:**
+- All tables in the database with row counts
+- Column information and data types
+- **Automatic partition strategy suggestions**
+- Ready-to-use configuration JSON
+
+**Example output:**
+```
+Database: IcebergDemo_Source
+Tables: 3
+Total Rows: 30
+
+📊 dbo.Orders
+   Rows: 10
+   Columns: 7
+   Suggested Partition: date
+   Column: OrderDate
+   Confidence: 80%
+```
+
+**To see detailed information about a specific table:**
+```bash
+dotnet run --project src/DataTransfer.Console -- \
+  --discover "Server=localhost,1433;..." \
+  --table dbo.Orders
+```
+
+This shows all columns, data types, and generates sample configuration JSON you can copy directly into `appsettings.json`.
+
+### Step 5: Configure Tables for Transfer
 
 Update `config/appsettings.json` to define which tables to transfer. Here's a complete working example:
 

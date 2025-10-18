@@ -17,8 +17,14 @@ A high-performance .NET 8 solution for transferring data between SQL Server inst
   - Visual screenshot-based test documentation
 - **Console Application**: Multiple operation modes
   - Interactive menu for profile selection
-  - Command-line arguments for automation (--profile, --config, --list-profiles)
+  - Command-line arguments for automation (--profile, --config, --list-profiles, --discover)
   - Backward compatible with legacy config files
+- **Schema Discovery**: Intelligent database exploration
+  - Auto-discover tables, columns, and data types from SQL Server
+  - Smart partition strategy suggestions based on table analysis
+  - Confidence scores for recommendations (60%-90%)
+  - Generate ready-to-use configuration JSON
+  - Table name suggestions for typos
 - **Multiple Partition Strategies**: Date, Integer Date, SCD2 (Slowly Changing Dimensions), and Static tables
 - **Apache Parquet Storage**: Industry-standard columnar format with Snappy compression
 - **Date-Based Partitioning**: Hive-compatible partitioning scheme (`year=YYYY/month=MM/day=DD/`)
@@ -189,7 +195,52 @@ dotnet run --project src/DataTransfer.Console -- --list-profiles
 
 Profiles are shared with the Web UI and stored in `./profiles/profiles.json`. Create profiles using the Web UI, then execute them from the console for scheduled/automated transfers.
 
-#### 3. Config File Mode (Legacy)
+#### 3. Schema Discovery Mode (Explore Database)
+```bash
+# Discover all tables in a database
+dotnet run --project src/DataTransfer.Console -- \
+  --discover "Server=localhost;Database=MyDB;Integrated Security=true;TrustServerCertificate=true"
+
+# Discover specific table with detailed information
+dotnet run --project src/DataTransfer.Console -- \
+  --discover "Server=localhost;..." --table dbo.Orders
+```
+
+The discovery feature will:
+1. Connect to SQL Server and validate credentials
+2. Query database schema (tables, columns, data types)
+3. Analyze table structures and row counts
+4. **Suggest optimal partition strategies** based on:
+   - Table size (small tables → static)
+   - Date/DateTime columns → date partitioning
+   - Integer date columns (YYYYMMDD) → int_date
+   - SCD2 patterns (EffectiveDate/ExpirationDate) → scd2
+5. Generate ready-to-use configuration JSON
+6. Display confidence scores (60%-90%) for recommendations
+
+**Example Output:**
+```
+📊 dbo.Orders
+   Rows: 125,430
+   Columns: 8
+   Suggested Partition: date
+   Column: OrderDate
+   Confidence: 80%
+
+   Sample Configuration:
+   {
+     "type": "date",
+     "column": "OrderDate"
+   }
+```
+
+**Benefits:**
+- No need to manually inspect database schema
+- Automatic partition strategy recommendations
+- Copy-paste configuration JSON directly into `appsettings.json`
+- Helps avoid misconfiguration errors
+
+#### 4. Config File Mode (Legacy)
 ```bash
 # Run from traditional config file
 dotnet run --project src/DataTransfer.Console -- --config config/appsettings.json
