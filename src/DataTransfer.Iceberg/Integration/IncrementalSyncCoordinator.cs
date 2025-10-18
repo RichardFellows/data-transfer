@@ -1,7 +1,7 @@
+using DataTransfer.Core.Mapping;
 using DataTransfer.Core.Models.Iceberg;
 using DataTransfer.Iceberg.Catalog;
 using DataTransfer.Iceberg.ChangeDetection;
-using DataTransfer.Iceberg.Mapping;
 using DataTransfer.Iceberg.MergeStrategies;
 using DataTransfer.Iceberg.Models;
 using DataTransfer.Iceberg.Readers;

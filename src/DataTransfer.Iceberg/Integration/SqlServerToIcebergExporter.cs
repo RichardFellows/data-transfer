@@ -1,7 +1,7 @@
 using System.Data;
+using DataTransfer.Core.Mapping;
 using DataTransfer.Core.Models.Iceberg;
 using DataTransfer.Iceberg.Catalog;
-using DataTransfer.Iceberg.Mapping;
 using DataTransfer.Iceberg.Models;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
