@@ -1,23 +1,32 @@
 # DataTransfer
 
-A high-performance .NET 8 solution for transferring data between SQL Server instances using Apache Parquet as intermediate storage. Supports multiple partitioning strategies, handles large datasets efficiently through streaming, and provides Docker deployment for production environments.
+A high-performance .NET 8 solution for transferring data between SQL Server instances using Apache Parquet and Apache Iceberg as intermediate storage. Supports incremental synchronization with watermark tracking, multiple partitioning strategies, and provides both Web UI and Console interfaces.
 
 ## Features
 
+- **Iceberg Integration**: Apache Iceberg table format for incremental sync
+  - **Incremental Sync** with watermark tracking (SQL → Iceberg → SQL)
+  - Snapshot isolation for consistent reads
+  - Version control for data changes
+  - SQL Server → Iceberg export
+  - Iceberg → SQL Server import
+  - See [ICEBERG_QUICKSTART.md](docs/ICEBERG_QUICKSTART.md) for usage
 - **Transfer Profiles**: Save and reuse transfer configurations
   - File-based storage for portability and version control
   - Create profiles via Web UI, execute via Console for automation
   - Shared between Web and Console apps
   - Support for tags, descriptions, and metadata
 - **Web UI**: Modern Blazor Server interface for interactive data transfers
-  - SQL Server → Parquet exports with dynamic table selection
-  - Parquet → SQL Server imports with file browsing
+  - All transfer types: SQL↔Parquet, SQL↔Iceberg, Incremental Sync
+  - Dynamic table selection with Iceberg table discovery
   - Cascading dropdowns for database/schema/table navigation
+  - Incremental sync configuration (primary key, watermark, merge strategy)
   - Transfer history with success/failure tracking
   - Visual screenshot-based test documentation
 - **Console Application**: Multiple operation modes
   - Interactive menu for profile selection
   - Command-line arguments for automation (--profile, --config, --list-profiles, --discover)
+  - Iceberg commands: --export-iceberg, --import-iceberg, --sync-iceberg
   - Backward compatible with legacy config files
 - **Schema Discovery**: Intelligent database exploration
   - Auto-discover tables, columns, and data types from SQL Server

@@ -137,6 +137,110 @@ dotnet run --project src/DataTransfer.Console -- \
 **Core Discovery Service:**
 - **Class:** `SqlSchemaDiscovery` (src/DataTransfer.SqlServer/SqlSchemaDiscovery.cs)
 - **Methods:**
+
+---
+
+#### `--export-iceberg <connection> <table>` - Export to Iceberg
+
+**Documentation Reference:** docs/ICEBERG_QUICKSTART.md
+
+**Command:**
+```bash
+dotnet run --project src/DataTransfer.Console -- \
+  --export-iceberg "Server=localhost;Database=MyDb;..." "dbo.Customers" \
+  --iceberg-name customers_export
+```
+
+**Implementation:**
+- **Entry Point:** `Program.cs:349-502` - `RunCommandLineModeAsync()`
+- **Argument Parsing:**
+  - `Program.cs:439-445` - Parses `--export-iceberg` with connection string and table
+  - `Program.cs:446-452` - Parses optional `--iceberg-name` flag
+- **Execution:** `Program.cs:515` - Calls `RunExportIcebergAsync()`
+- **Export Method:** `Program.cs:814-876` - `RunExportIcebergAsync()`
+- **Transfer Type:** `TransferType.SqlToIceberg`
+- **Services Used:**
+  - `UnifiedTransferOrchestrator.ExecuteTransferAsync()`
+  - `SqlServerToIcebergExporter` (src/DataTransfer.Iceberg/Integration/)
+
+**Result:** Creates Iceberg table in `./iceberg-warehouse/{table-name}/`
+
+---
+
+#### `--import-iceberg <table> <connection> <destination>` - Import from Iceberg
+
+**Documentation Reference:** docs/ICEBERG_QUICKSTART.md
+
+**Command:**
+```bash
+dotnet run --project src/DataTransfer.Console -- \
+  --import-iceberg customers_export \
+  "Server=localhost;Database=TargetDb;..." "dbo.Customers"
+```
+
+**Implementation:**
+- **Entry Point:** `Program.cs:349-502` - `RunCommandLineModeAsync()`
+- **Argument Parsing:**
+  - `Program.cs:453-461` - Parses `--import-iceberg` with table, connection, and destination
+- **Execution:** `Program.cs:520` - Calls `RunImportIcebergAsync()`
+- **Import Method:** `Program.cs:878-940` - `RunImportIcebergAsync()`
+- **Transfer Type:** `TransferType.IcebergToSql`
+- **Services Used:**
+  - `UnifiedTransferOrchestrator.ExecuteTransferAsync()`
+  - `IcebergReader` (src/DataTransfer.Iceberg/Readers/)
+  - `SqlServerImporter` (src/DataTransfer.Iceberg/Integration/)
+
+**Result:** Imports Iceberg snapshot to SQL Server using UPSERT merge
+
+---
+
+#### `--sync-iceberg <args>` - Incremental Synchronization
+
+**Documentation Reference:** docs/ICEBERG_QUICKSTART.md
+
+**Command:**
+```bash
+dotnet run --project src/DataTransfer.Console -- \
+  --sync-iceberg \
+  "Server=source;Database=SourceDb;..." "dbo.Orders" \
+  orders_sync \
+  "Server=target;Database=TargetDb;..." "dbo.Orders" \
+  --primary-key OrderId \
+  --watermark UpdatedAt \
+  --merge-strategy upsert
+```
+
+**Implementation:**
+- **Entry Point:** `Program.cs:349-502` - `RunCommandLineModeAsync()`
+- **Argument Parsing:**
+  - `Program.cs:462-472` - Parses `--sync-iceberg` with 5 arguments (source connection, source table, iceberg table, target connection, target table)
+  - `Program.cs:473-479` - Parses `--primary-key` (required)
+  - `Program.cs:480-486` - Parses `--watermark` (required)
+  - `Program.cs:487-494` - Parses optional `--merge-strategy` (default: upsert)
+- **Validation:** `Program.cs:527-531` - Ensures primary-key and watermark are provided
+- **Execution:** `Program.cs:532-534` - Calls `RunSyncIcebergAsync()`
+- **Sync Method:** `Program.cs:942-1030` - `RunSyncIcebergAsync()`
+- **Transfer Type:** `TransferType.SqlToIcebergIncremental`
+- **Services Used:**
+  - `UnifiedTransferOrchestrator.ExecuteTransferAsync()`
+  - `IncrementalSyncCoordinator` (src/DataTransfer.Iceberg/Integration/)
+  - `FileWatermarkStore` (src/DataTransfer.Iceberg/Watermarks/)
+  - `TimestampChangeDetection` (src/DataTransfer.Iceberg/ChangeDetection/)
+
+**Watermark Storage:** `.watermarks/{iceberg-table-name}.json`
+
+**How It Works:**
+1. **First Run:** Full export from source → Iceberg → Import to target
+2. **Subsequent Runs:** Incremental export (filtered by watermark) → Iceberg → Merge to target
+3. **Watermark Update:** Stores last synced watermark value for next run
+
+**Merge Strategies:**
+- `upsert` (default): INSERT new rows, UPDATE existing (based on primary key)
+- `append`: INSERT only, skip existing rows
+
+---
+
+### Methods:
   - `DiscoverDatabaseAsync()` - Line 28-43 - Full database discovery
   - `DiscoverTableAsync()` - Line 49+ - Single table discovery
   - `TestConnectionAsync()` - Tests database connection
