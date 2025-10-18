@@ -128,6 +128,18 @@ public class ConfigurationValidator
                 ValidateSqlToSqlTransfer(config, result);
                 break;
 
+            case TransferType.SqlToIceberg:
+                ValidateSqlToIcebergTransfer(config, result);
+                break;
+
+            case TransferType.IcebergToSql:
+                ValidateIcebergToSqlTransfer(config, result);
+                break;
+
+            case TransferType.SqlToIcebergIncremental:
+                ValidateSqlToIcebergIncrementalTransfer(config, result);
+                break;
+
             default:
                 result.AddError($"Transfer type {config.TransferType} is not supported");
                 break;
@@ -228,6 +240,146 @@ public class ConfigurationValidator
         if (config.Destination.Table == null)
         {
             result.AddError("Destination table is required");
+        }
+    }
+
+    private void ValidateSqlToIcebergTransfer(TransferConfiguration config, ValidationResult result)
+    {
+        // Validate source is SQL Server
+        if (config.Source.Type != SourceType.SqlServer)
+        {
+            result.AddError("Source must be SqlServer for SqlToIceberg transfer");
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Source.ConnectionString))
+        {
+            result.AddError("Source connection string is required");
+        }
+
+        if (config.Source.Table == null)
+        {
+            result.AddError("Source table is required");
+        }
+
+        // Validate destination is Iceberg
+        if (config.Destination.Type != DestinationType.Iceberg)
+        {
+            result.AddError("Destination must be Iceberg for SqlToIceberg transfer");
+        }
+
+        if (config.Destination.IcebergTable == null)
+        {
+            result.AddError("Destination Iceberg table configuration is required");
+        }
+        else if (string.IsNullOrWhiteSpace(config.Destination.IcebergTable.TableName))
+        {
+            result.AddError("Destination Iceberg table name is required");
+        }
+    }
+
+    private void ValidateIcebergToSqlTransfer(TransferConfiguration config, ValidationResult result)
+    {
+        // Validate source is Iceberg
+        if (config.Source.Type != SourceType.Iceberg)
+        {
+            result.AddError("Source must be Iceberg for IcebergToSql transfer");
+        }
+
+        if (config.Source.IcebergTable == null)
+        {
+            result.AddError("Source Iceberg table configuration is required");
+        }
+        else if (string.IsNullOrWhiteSpace(config.Source.IcebergTable.TableName))
+        {
+            result.AddError("Source Iceberg table name is required");
+        }
+
+        // Validate destination is SQL Server
+        if (config.Destination.Type != DestinationType.SqlServer)
+        {
+            result.AddError("Destination must be SqlServer for IcebergToSql transfer");
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Destination.ConnectionString))
+        {
+            result.AddError("Destination connection string is required");
+        }
+
+        if (config.Destination.Table == null)
+        {
+            result.AddError("Destination table is required");
+        }
+    }
+
+    private void ValidateSqlToIcebergIncrementalTransfer(TransferConfiguration config, ValidationResult result)
+    {
+        // Validate source is SQL Server
+        if (config.Source.Type != SourceType.SqlServer)
+        {
+            result.AddError("Source must be SqlServer for SqlToIcebergIncremental transfer");
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Source.ConnectionString))
+        {
+            result.AddError("Source connection string is required");
+        }
+
+        if (config.Source.Table == null)
+        {
+            result.AddError("Source table is required");
+        }
+
+        // Validate destination is Iceberg
+        if (config.Destination.Type != DestinationType.Iceberg)
+        {
+            result.AddError("Destination must be Iceberg for SqlToIcebergIncremental transfer");
+        }
+
+        if (config.Destination.IcebergTable == null)
+        {
+            result.AddError("Destination Iceberg table configuration is required");
+            return; // Can't validate incremental options if IcebergTable is null
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Destination.IcebergTable.TableName))
+        {
+            result.AddError("Destination Iceberg table name is required");
+        }
+
+        // Validate incremental sync options are present
+        if (config.Destination.IcebergTable.IncrementalSync == null)
+        {
+            result.AddError("Incremental sync configuration is required for SqlToIcebergIncremental transfer");
+            return;
+        }
+
+        var incrementalSync = config.Destination.IcebergTable.IncrementalSync;
+
+        // Validate required incremental sync fields
+        if (string.IsNullOrWhiteSpace(incrementalSync.PrimaryKeyColumn))
+        {
+            result.AddError("Primary key column is required for incremental sync");
+        }
+
+        if (string.IsNullOrWhiteSpace(incrementalSync.WatermarkColumn))
+        {
+            result.AddError("Watermark column is required for incremental sync");
+        }
+
+        // Validate merge strategy
+        var validStrategies = new[] { "upsert", "append" };
+        if (!string.IsNullOrWhiteSpace(incrementalSync.MergeStrategy) &&
+            !validStrategies.Contains(incrementalSync.MergeStrategy.ToLower()))
+        {
+            result.AddError($"Merge strategy must be one of: {string.Join(", ", validStrategies)}");
+        }
+
+        // Validate watermark type
+        var validWatermarkTypes = new[] { "timestamp", "integer" };
+        if (!string.IsNullOrWhiteSpace(incrementalSync.WatermarkType) &&
+            !validWatermarkTypes.Contains(incrementalSync.WatermarkType.ToLower()))
+        {
+            result.AddError($"Watermark type must be one of: {string.Join(", ", validWatermarkTypes)}");
         }
     }
 }
