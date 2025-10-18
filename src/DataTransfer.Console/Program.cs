@@ -355,6 +355,8 @@ static async Task<int> RunCommandLineModeAsync(string[] args, IServiceProvider s
     // Parse arguments
     string? profileName = null;
     string? configPath = null;
+    string? discoverConnectionString = null;
+    string? discoverTable = null;
     bool listProfiles = false;
 
     for (int i = 0; i < args.Length; i++)
@@ -375,6 +377,20 @@ static async Task<int> RunCommandLineModeAsync(string[] args, IServiceProvider s
                     i++;
                 }
                 break;
+            case "--discover":
+                if (i + 1 < args.Length)
+                {
+                    discoverConnectionString = args[i + 1];
+                    i++;
+                }
+                break;
+            case "--table":
+                if (i + 1 < args.Length)
+                {
+                    discoverTable = args[i + 1];
+                    i++;
+                }
+                break;
             case "--list-profiles":
                 listProfiles = true;
                 break;
@@ -388,6 +404,11 @@ static async Task<int> RunCommandLineModeAsync(string[] args, IServiceProvider s
     {
         await ListProfilesAsync(profileService);
         return 0;
+    }
+
+    if (!string.IsNullOrEmpty(discoverConnectionString))
+    {
+        return await RunSchemaDiscoveryAsync(discoverConnectionString, discoverTable, logger);
     }
 
     if (!string.IsNullOrEmpty(profileName))
@@ -480,6 +501,193 @@ static async Task<int> RunCommandLineModeAsync(string[] args, IServiceProvider s
     }
 }
 
+static async Task<int> RunSchemaDiscoveryAsync(string connectionString, string? tableFilter, Microsoft.Extensions.Logging.ILogger logger)
+{
+    try
+    {
+        logger.LogInformation("Discovering database schema...");
+        Console.WriteLine();
+        Console.WriteLine("╔════════════════════════════════════════════╗");
+        Console.WriteLine("║   🔍 Database Schema Discovery            ║");
+        Console.WriteLine("╚════════════════════════════════════════════╝");
+        Console.WriteLine();
+
+        var discovery = new SqlSchemaDiscovery(connectionString);
+
+        // Test connection first
+        Console.Write("Testing connection... ");
+        if (!await discovery.TestConnectionAsync())
+        {
+            Console.WriteLine("❌ Failed");
+            logger.LogError("Failed to connect to database");
+            return 1;
+        }
+        Console.WriteLine("✓ Connected");
+        Console.WriteLine();
+
+        if (!string.IsNullOrEmpty(tableFilter))
+        {
+            // Discover specific table
+            var parts = tableFilter.Split('.');
+            if (parts.Length != 2)
+            {
+                Console.WriteLine("❌ Table filter must be in format: schema.tablename (e.g., dbo.Orders)");
+                return 1;
+            }
+
+            var schema = parts[0];
+            var tableName = parts[1];
+
+            Console.WriteLine($"Discovering table: {schema}.{tableName}");
+            Console.WriteLine();
+
+            var table = await discovery.DiscoverTableAsync(schema, tableName);
+            if (table == null)
+            {
+                Console.WriteLine($"❌ Table {schema}.{tableName} not found");
+
+                // Try to suggest similar tables
+                var dbInfo = await discovery.DiscoverDatabaseAsync();
+                var suggestions = dbInfo.GetTableSuggestions(tableName);
+                if (suggestions.Any())
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("Did you mean one of these?");
+                    foreach (var suggestion in suggestions)
+                    {
+                        Console.WriteLine($"  - {suggestion}");
+                    }
+                }
+                return 1;
+            }
+
+            DisplayTableDetails(table);
+            return 0;
+        }
+        else
+        {
+            // Discover entire database
+            var dbInfo = await discovery.DiscoverDatabaseAsync();
+
+            Console.WriteLine($"Database: {dbInfo.DatabaseName}");
+            Console.WriteLine($"Server: {dbInfo.ServerVersion}");
+            Console.WriteLine($"Tables: {dbInfo.TotalTables:N0}");
+            Console.WriteLine($"Total Rows: {dbInfo.TotalRows:N0}");
+            Console.WriteLine();
+            Console.WriteLine("═══════════════════════════════════════════════════════════════");
+            Console.WriteLine();
+
+            // Group by schema
+            var schemas = dbInfo.Tables.GroupBy(t => t.Schema).OrderBy(g => g.Key);
+
+            foreach (var schemaGroup in schemas)
+            {
+                Console.WriteLine($"Schema: {schemaGroup.Key}");
+                Console.WriteLine("───────────────────────────────────────────────────────────────");
+                Console.WriteLine();
+
+                foreach (var table in schemaGroup.OrderBy(t => t.TableName))
+                {
+                    DisplayTableSummary(table);
+                }
+                Console.WriteLine();
+            }
+
+            Console.WriteLine("═══════════════════════════════════════════════════════════════");
+            Console.WriteLine();
+            Console.WriteLine("💡 Tip: Use --table schema.tablename to see detailed information");
+            Console.WriteLine("   Example: --discover \"...\" --table dbo.Orders");
+            Console.WriteLine();
+
+            return 0;
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"❌ Error: {ex.Message}");
+        logger.LogError(ex, "Schema discovery failed");
+        return 1;
+    }
+}
+
+static void DisplayTableSummary(DataTransfer.SqlServer.Models.TableInfo table)
+{
+    Console.WriteLine($"📊 {table.FullName}");
+    Console.WriteLine($"   Rows: {table.RowCount:N0}");
+    Console.WriteLine($"   Columns: {table.Columns.Count}");
+
+    var suggestion = table.GetBestPartitionSuggestion();
+    if (suggestion != null)
+    {
+        Console.WriteLine($"   Suggested Partition: {suggestion.PartitionType}");
+        if (!string.IsNullOrEmpty(suggestion.ColumnName))
+        {
+            Console.WriteLine($"   Column: {suggestion.ColumnName}");
+        }
+        if (!string.IsNullOrEmpty(suggestion.EffectiveDateColumn))
+        {
+            Console.WriteLine($"   Effective: {suggestion.EffectiveDateColumn}, Expiration: {suggestion.ExpirationDateColumn}");
+        }
+        Console.WriteLine($"   Confidence: {suggestion.Confidence:P0}");
+    }
+    Console.WriteLine();
+}
+
+static void DisplayTableDetails(DataTransfer.SqlServer.Models.TableInfo table)
+{
+    Console.WriteLine($"Table: {table.FullName}");
+    Console.WriteLine($"Row Count: {table.RowCount:N0}");
+    Console.WriteLine();
+    Console.WriteLine("Columns:");
+    Console.WriteLine("───────────────────────────────────────────────────────────────");
+
+    foreach (var column in table.Columns)
+    {
+        var nullable = column.IsNullable ? "NULL" : "NOT NULL";
+        var typeInfo = column.DataType;
+
+        if (column.MaxLength > 0)
+        {
+            typeInfo += $"({column.MaxLength})";
+        }
+        else if (column.MaxLength == -1)
+        {
+            typeInfo += "(MAX)";
+        }
+        else if (column.Precision > 0)
+        {
+            typeInfo += $"({column.Precision},{column.Scale})";
+        }
+
+        Console.WriteLine($"  {column.ColumnName,-30} {typeInfo,-20} {nullable}");
+
+        var colSuggestion = column.GetPartitionSuggestion();
+        if (colSuggestion != null)
+        {
+            Console.WriteLine($"     💡 Can be used for {colSuggestion.PartitionType} partitioning");
+        }
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("═══════════════════════════════════════════════════════════════");
+    Console.WriteLine();
+
+    var suggestion = table.GetBestPartitionSuggestion();
+    if (suggestion != null)
+    {
+        Console.WriteLine("Recommended Partition Strategy:");
+        Console.WriteLine("───────────────────────────────────────────────────────────────");
+        Console.WriteLine();
+        Console.WriteLine($"Type: {suggestion.PartitionType}");
+        Console.WriteLine($"Reason: {suggestion.Reason}");
+        Console.WriteLine($"Confidence: {suggestion.Confidence:P0}");
+        Console.WriteLine();
+        Console.WriteLine("Sample Configuration:");
+        Console.WriteLine(suggestion.ToConfigurationJson());
+        Console.WriteLine();
+    }
+}
+
 static void ShowHelp()
 {
     Console.WriteLine();
@@ -493,12 +701,16 @@ static void ShowHelp()
     Console.WriteLine("  --profile <name>      Run transfer from saved profile");
     Console.WriteLine("  --config <path>       Run transfer from config file (legacy)");
     Console.WriteLine("  --list-profiles       List all saved profiles");
+    Console.WriteLine("  --discover <connstr>  Discover database schema and suggest partitions");
+    Console.WriteLine("  --table <schema.name> Discover specific table (use with --discover)");
     Console.WriteLine("  --help                Show this help message");
     Console.WriteLine();
     Console.WriteLine("Examples:");
     Console.WriteLine("  dotnet run --project src/DataTransfer.Console -- --profile \"Daily Orders Extract\"");
     Console.WriteLine("  dotnet run --project src/DataTransfer.Console -- --list-profiles");
     Console.WriteLine("  dotnet run --project src/DataTransfer.Console -- --config config/appsettings.json");
+    Console.WriteLine("  dotnet run --project src/DataTransfer.Console -- --discover \"Server=localhost;Database=MyDB;...\"");
+    Console.WriteLine("  dotnet run --project src/DataTransfer.Console -- --discover \"...\" --table dbo.Orders");
     Console.WriteLine();
 }
 
