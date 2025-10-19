@@ -63,3 +63,27 @@ coveragereport/
 
 ## ChunkHound database (MCP tool cache)
 .chunkhound/
+.chunkhound.json
+
+## MCP configuration (user-specific)
+.mcp.json
+
+## Local configuration files (may contain sensitive data)
+config/appsettings.json
+config/environments.json
+
+## Runtime data directories
+parquet-output/
+output/
+profiles/
+logs/
+iceberg-warehouse/
+.watermarks/
+
+## Windows zone identifier files
+*:Zone.Identifier
+
+## Demo/test output
+demo-run.log
+demo_test.log
+*.log
