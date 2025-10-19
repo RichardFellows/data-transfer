@@ -20,8 +20,8 @@
 | 4 | Bulk Ops | **Batch/Bulk Operations** - Transfer multiple tables in one operation | HIGH | Medium | | | TODO |
 | 5 | Bulk Ops | **Transfer Sets/Groups** - Named groups of related tables | HIGH | Low | | | TODO |
 | 6 | Bulk Ops | **Dependency-Aware Ordering** - Respect FK constraints when transferring | MEDIUM | High | | | TODO |
-| 7 | Filtering | **WHERE Clause Support** - Filter data by SQL conditions | HIGH | Low | | | TODO |
-| 8 | Filtering | **Row Limit (Top N)** - Transfer only first N rows | HIGH | Low | | | TODO |
+| 7 | Filtering | **WHERE Clause Support** - Filter data by SQL conditions | HIGH | Low | 1 | S | DONE |
+| 8 | Filtering | **Row Limit (Top N)** - Transfer only first N rows | HIGH | Low | 1 | S | DONE |
 | 9 | Filtering | **Column Exclusion** - Skip large BLOB or sensitive columns | MEDIUM | Low | | | TODO |
 | 10 | Filtering | **Date Range Quick Filters** - Last 7/30/90 days presets | HIGH | Low | | | TODO |
 | 11 | Integrity | **FK Relationship Detection** - Auto-detect table relationships | MEDIUM | Medium | | | TODO |
@@ -37,7 +37,7 @@
 | 21 | Performance | **Streaming for Large Tables** - Avoid MemoryStream for big data | MEDIUM | Medium | | | TODO |
 | 22 | Performance | **Parallel Table Extraction** - Transfer multiple tables concurrently | MEDIUM | Medium | | | TODO |
 | 23 | Performance | **Configurable Batch Sizes** - Tune performance per table | LOW | Low | | | TODO |
-| 24 | Validation | **Row Count Verification** - Compare source vs destination counts | HIGH | Low | | | TODO |
+| 24 | Validation | **Row Count Verification** - Compare source vs destination counts | HIGH | Low | 1 | S | DONE |
 | 25 | Validation | **Schema Validation** - Ensure UAT matches production structure | HIGH | Medium | | | TODO |
 | 26 | Validation | **Data Integrity Checks** - Validate data after transfer | MEDIUM | Medium | | | TODO |
 | 27 | Validation | **Checksum/Hash Validation** - Verify data integrity | LOW | Medium | | | TODO |
@@ -56,7 +56,7 @@
 | 40 | Storage | **Archive to Cold Storage** - Move old files to cheaper storage | MEDIUM | Medium | | | TODO |
 | 41 | Storage | **File Deduplication** - Detect and remove duplicate exports | LOW | Medium | | | TODO |
 | 42 | Storage | **Metadata Indexing** - Faster Parquet file discovery | MEDIUM | Medium | | | TODO |
-| 43 | Preview | **Dry-Run Mode** - Preview without executing | HIGH | Low | | | TODO |
+| 43 | Preview | **Dry-Run Mode** - Preview without executing | HIGH | Low | 1 | S | DONE |
 | 44 | Preview | **Transfer Preview** - Show row counts, size, estimated time | HIGH | Medium | | | TODO |
 | 45 | Preview | **SQL Query Preview** - Show actual SQL that will execute | MEDIUM | Low | | | TODO |
 | 46 | Security | **Data Masking/Anonymization** - Hash/redact sensitive data | MEDIUM | High | | | TODO |
@@ -65,7 +65,7 @@
 | 49 | Recovery | **Rollback Capabilities** - Restore UAT to previous state | MEDIUM | High | | | TODO |
 | 50 | Recovery | **Snapshot Before Load** - Auto-snapshot UAT before changes | MEDIUM | Medium | | | TODO |
 | 51 | Recovery | **Version History** - Track data load versions | LOW | Medium | | | TODO |
-| 52 | Environment | **Multi-Environment Support** - Named environments (Prod/UAT/QA/Dev) | HIGH | Low | | | TODO |
+| 52 | Environment | **Multi-Environment Support** - Named environments (Prod/UAT/QA/Dev) | HIGH | Low | 1 | S | DONE |
 | 53 | Environment | **Environment-Specific Settings** - Per-env connection configs | HIGH | Low | | | TODO |
 | 54 | Environment | **Read-Only Production** - Prevent writes to production | HIGH | Low | | | TODO |
 | 55 | Environment | **Environment Promotion** - Copy configs between environments | MEDIUM | Medium | | | TODO |
@@ -96,18 +96,18 @@
 
 These can be implemented quickly and provide immediate value:
 
-| ID | Item | Why It's a Quick Win | Estimated Time |
-|---|---|---|---|
-| 7 | WHERE Clause Support | Small config change, huge flexibility | 2-4 hours |
-| 8 | Row Limit (Top N) | Simple parameter addition | 1-2 hours |
-| 15 | Max Rows Per Table Limit | Safety validation in UI | 1-2 hours |
-| 24 | Row Count Verification | Compare counts after transfer | 2-3 hours |
-| 28 | Email Notifications | Use built-in .NET SMTP | 3-4 hours |
-| 34 | Save Transfer Configurations | Add database persistence | 4-6 hours |
-| 43 | Dry-Run Mode | Skip execution, show preview | 2-3 hours |
-| 52 | Multi-Environment Support | Named connection presets | 2-3 hours |
-| 71 | Reuse Configuration Button | Add button on history page | 1 hour |
-| 72 | Quick Filters in UI | Add date range buttons | 2 hours |
+| ID | Item | Why It's a Quick Win | Estimated Time | Status |
+|---|---|---|---|---|
+| 7 | WHERE Clause Support | Small config change, huge flexibility | 2-4 hours | ✅ DONE |
+| 8 | Row Limit (Top N) | Simple parameter addition | 1-2 hours | ✅ DONE |
+| 15 | Max Rows Per Table Limit | Safety validation in UI | 1-2 hours | TODO |
+| 24 | Row Count Verification | Compare counts after transfer | 2-3 hours | ✅ DONE |
+| 28 | Email Notifications | Use built-in .NET SMTP | 3-4 hours | TODO |
+| 34 | Save Transfer Configurations | Add database persistence | 4-6 hours | TODO |
+| 43 | Dry-Run Mode | Skip execution, show preview | 2-3 hours | ✅ DONE |
+| 52 | Multi-Environment Support | Named connection presets | 2-3 hours | ✅ DONE |
+| 71 | Reuse Configuration Button | Add button on history page | 1 hour | TODO |
+| 72 | Quick Filters in UI | Add date range buttons | 2 hours | TODO |
 
 ---
 
@@ -126,14 +126,14 @@ These can be implemented quickly and provide immediate value:
 ### Phase 2: Safety & Reliability (2 weeks)
 **Goal:** Ensure safe, validated UAT loads
 
-- [ ] Item #7: WHERE Clause Support
-- [ ] Item #8: Row Limit (Top N)
+- [x] Item #7: WHERE Clause Support ✅
+- [x] Item #8: Row Limit (Top N) ✅
 - [ ] Item #15: Max Rows Per Table Limit
 - [ ] Item #16: Truncate Before Load Option
-- [ ] Item #24: Row Count Verification
+- [x] Item #24: Row Count Verification ✅
 - [ ] Item #25: Schema Validation
-- [ ] Item #43: Dry-Run Mode
-- [ ] Item #52: Multi-Environment Support
+- [x] Item #43: Dry-Run Mode ✅
+- [x] Item #52: Multi-Environment Support ✅
 
 ### Phase 3: Performance & Maintenance (2 weeks)
 **Goal:** Optimize for large datasets and daily use
@@ -183,6 +183,13 @@ Example prioritization:
 
 ---
 
-**Last Updated:** 2025-10-04
+**Last Updated:** 2025-10-19
 **Document Owner:** Development Team
 **Review Schedule:** Weekly during active development
+
+**Recent Completions (2025-10-19):**
+- ✅ Item #7: WHERE Clause Support - Added custom WHERE clause filtering to ExtractSettings
+- ✅ Item #8: Row Limit (Top N) - Added RowLimit property with SQL TOP (N) support
+- ✅ Item #24: Row Count Verification - Automatic source/destination count comparison
+- ✅ Item #43: Dry-Run Mode - Preview transfers without execution
+- ✅ Item #52: Multi-Environment Support - ${env:Variable} token replacement with --environment flag

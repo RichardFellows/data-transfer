@@ -101,6 +101,73 @@ dotnet run --project src/DataTransfer.Console -- --list-profiles
 
 ---
 
+#### `--environment <name>` - Use Environment-Specific Settings
+
+**Documentation Reference:** config/environments.example.json
+
+**Command:**
+```bash
+# Run profile with production environment
+dotnet run --project src/DataTransfer.Console -- \
+  --profile "Daily Orders Extract" --environment prod
+
+# Environment settings are loaded from config/environments.json
+```
+
+**Implementation:**
+- **Entry Point:** `Program.cs:349-502` - `RunCommandLineModeAsync()`
+- **Argument Parsing:** `Program.cs:423-429` - Parses `--environment` flag
+- **Loading Method:** `Program.cs:1040-1075` - `LoadEnvironmentAsync()`
+- **Application Method:** `Program.cs:1077-1100` - `ApplyEnvironmentToConfiguration()`
+- **Usage:** `Program.cs:560-565` - Applied to profile configurations
+
+**Environment File Location:** `config/environments.json`
+
+**Environment Configuration Format:**
+```json
+{
+  "environments": [
+    {
+      "name": "prod",
+      "variables": {
+        "SourceConnectionString": "Server=prod-server;Database=SourceDB;...",
+        "DestinationConnectionString": "Server=prod-server;Database=DestDB;...",
+        "ParquetPath": "/data/prod/parquet-files"
+      }
+    }
+  ]
+}
+```
+
+**Token Replacement:**
+Supports `${env:VariableName}` token syntax in:
+- Source connection strings
+- Destination connection strings
+- Parquet file paths
+
+**Example Profile with Tokens:**
+```json
+{
+  "configuration": {
+    "source": {
+      "connectionString": "${env:SourceConnectionString}"
+    },
+    "destination": {
+      "parquetPath": "${env:ParquetPath}"
+    }
+  }
+}
+```
+
+**Token Processing:**
+- **Service:** `EnvironmentManager` (src/DataTransfer.Configuration/EnvironmentManager.cs)
+- **Method:** `ReplaceTokens()` - Uses regex pattern `\$\{env:([^}]+)\}`
+- **Error Handling:** Throws `InvalidOperationException` if variable not found
+
+**Tests:** `tests/DataTransfer.Configuration.Tests/EnvironmentConfigurationTests.cs`
+
+---
+
 #### `--discover <connection-string>` - Schema Discovery
 
 **Documentation Reference:** README.md:198-243, GETTING_STARTED.md:248-283
@@ -591,6 +658,7 @@ docker run \
 |---------|-------------------|---------|---------|
 | `--profile` | Program.cs | 366-371, 414-440 | Run saved profile |
 | `--config` | Program.cs | 373-379, 441-496 | Run from config file |
+| `--environment` | Program.cs | 423-429, 560-565, 1040-1100 | Use environment-specific settings |
 | `--list-profiles` | Program.cs | 394-396, 403-407 | List all profiles |
 | `--discover` | Program.cs | 380-386, 409-412, 504-611 | Schema discovery |
 | `--table` | Program.cs | 387-393, 528-566 | Table filter for discovery |
@@ -607,6 +675,7 @@ docker run \
 | UnifiedTransferOrchestrator | Pipeline/UnifiedTransferOrchestrator.cs | 10+ | Profile execution |
 | DataTransferOrchestrator | Pipeline/DataTransferOrchestrator.cs | 8+ | Legacy config mode |
 | SqlSchemaDiscovery | SqlServer/SqlSchemaDiscovery.cs | 9+ | `--discover` command |
+| EnvironmentManager | Configuration/EnvironmentManager.cs | 9+ | `--environment` flag |
 | ConfigurationLoader | Configuration/ | - | Config file loading |
 | ConfigurationValidator | Configuration/ | - | Config validation |
 
@@ -622,6 +691,9 @@ dotnet run --project src/DataTransfer.Console
 
 # Run saved profile (automation)
 dotnet run --project src/DataTransfer.Console -- --profile "My Profile"
+
+# Run profile with environment-specific settings
+dotnet run --project src/DataTransfer.Console -- --profile "My Profile" --environment prod
 
 # Discover database schema
 dotnet run --project src/DataTransfer.Console -- \
