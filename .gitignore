@@ -60,3 +60,6 @@ coveragereport/
 ## Data directories
 /data/
 *.parquet
+
+## ChunkHound database (MCP tool cache)
+.chunkhound/
