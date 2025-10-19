@@ -71,6 +71,7 @@ coveragereport/
 ## Local configuration files (may contain sensitive data)
 config/appsettings.json
 config/environments.json
+src/DataTransfer.Web/appsettings.json
 
 ## Runtime data directories
 parquet-output/
