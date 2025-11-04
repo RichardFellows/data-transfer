@@ -43,7 +43,7 @@ A high-performance .NET 8 solution for transferring data between SQL Server inst
   - Docker support with 365MB optimized image
   - Comprehensive logging with Serilog (console and file outputs)
   - Robust error handling and recovery
-  - 144+ tests including profile service tests
+  - Comprehensive test coverage across all components
 - **Configurable**: JSON-based configuration with validation
 - **High Performance**: SqlBulkCopy for fast loading, async/await throughout
 
@@ -332,35 +332,49 @@ dotnet clean && dotnet build
 ### Layered Design
 
 ```
-┌─────────────────────────────────────────────────────┐
-│          DataTransfer.Console (CLI)                 │
-│  - Entry point with dependency injection            │
-│  - Configuration management                         │
-│  - Logging setup (Serilog)                          │
-└────────────────┬────────────────────────────────────┘
-                 │
-┌────────────────▼────────────────────────────────────┐
+┌──────────────────────┐  ┌─────────────────────────┐
+│  DataTransfer.Web    │  │ DataTransfer.Console    │
+│  (Blazor Server UI)  │  │ (CLI)                   │
+│  - Interactive UI    │  │ - Profile execution     │
+│  - Transfer profiles │  │ - Schema discovery      │
+│  - History tracking  │  │ - Batch operations      │
+└──────────┬───────────┘  └────────┬────────────────┘
+           │                       │
+           └───────────┬───────────┘
+                       │
+┌──────────────────────▼──────────────────────────────┐
 │       DataTransfer.Pipeline (Orchestration)         │
 │  - DataTransferOrchestrator                         │
 │  - Coordinates Extract → Store → Load workflow      │
+│  - Profile management and execution                 │
 └───┬─────────────────┬────────────────┬──────────────┘
     │                 │                │
 ┌───▼─────────┐  ┌────▼─────────┐  ┌──▼────────────┐
 │ SqlServer   │  │   Parquet    │  │ Configuration │
 │ - Extractor │  │   - Storage  │  │   - Loader    │
 │ - Loader    │  │   - Read/    │  │   - Validator │
-│ - Query     │  │     Write    │  └───────────────┘
-│   Builder   │  └──────────────┘
+│ - Query     │  │     Write    │  │   - Schema    │
+│   Builder   │  │              │  │     Discovery │
+│ - Discovery │  └──────────────┘  └───────────────┘
 └─────┬───────┘
-      │
-┌─────▼──────────────────────────────────────────────┐
-│          DataTransfer.Core (Domain)                 │
-│  - Interfaces (ITableExtractor, IParquetStorage,   │
-│    IDataLoader)                                     │
-│  - Models (TableConfiguration, TransferResult)      │
-│  - Partition Strategies (Date, IntDate, SCD2,      │
-│    Static)                                          │
-└─────────────────────────────────────────────────────┘
+      │         ┌──────────────────┐
+      │         │   Iceberg        │
+      │         │   - Table format │
+      │         │   - Incremental  │
+      │         │     sync         │
+      │         │   - Watermark    │
+      │         │     tracking     │
+      │         └────────┬─────────┘
+      │                  │
+┌─────▼──────────────────▼─────────────────────────┐
+│          DataTransfer.Core (Domain)               │
+│  - Interfaces (ITableExtractor, IParquetStorage, │
+│    IDataLoader, IIcebergClient)                   │
+│  - Models (TableConfiguration, TransferResult,    │
+│    TransferProfile)                               │
+│  - Partition Strategies (Date, IntDate, SCD2,     │
+│    Static)                                        │
+└───────────────────────────────────────────────────┘
 ```
 
 ### Data Flow
@@ -386,21 +400,30 @@ DataTransfer/
 │   ├── DataTransfer.Configuration/     # JSON configuration management
 │   ├── DataTransfer.SqlServer/         # SQL Server extraction and loading
 │   ├── DataTransfer.Parquet/           # Parquet file operations
+│   ├── DataTransfer.Iceberg/           # Apache Iceberg table format integration
 │   ├── DataTransfer.Pipeline/          # Transfer orchestration
 │   ├── DataTransfer.Console/           # CLI application entry point
 │   └── DataTransfer.Web/               # Blazor Server web UI
 ├── tests/
-│   ├── DataTransfer.Core.Tests/        # 48 unit tests
-│   ├── DataTransfer.Configuration.Tests/ # 16 unit tests
-│   ├── DataTransfer.SqlServer.Tests/   # 21 unit tests
-│   ├── DataTransfer.Parquet.Tests/     # 11 unit tests
-│   ├── DataTransfer.Pipeline.Tests/    # 10 unit tests
-│   ├── DataTransfer.Integration.Tests/ # 5 E2E tests (Testcontainers)
-│   └── DataTransfer.Web.Tests/         # 20+ Playwright E2E tests with screenshots
+│   ├── DataTransfer.Core.Tests/        # Core unit tests
+│   ├── DataTransfer.Configuration.Tests/ # Configuration unit tests
+│   ├── DataTransfer.SqlServer.Tests/   # SQL Server unit tests
+│   ├── DataTransfer.Parquet.Tests/     # Parquet unit tests
+│   ├── DataTransfer.Iceberg.Tests/     # Iceberg unit tests
+│   ├── DataTransfer.Pipeline.Tests/    # Pipeline unit tests
+│   ├── DataTransfer.Console.Tests/     # Console CLI unit tests
+│   ├── DataTransfer.Integration.Tests/ # E2E integration tests (Testcontainers)
+│   ├── DataTransfer.Web.Tests/         # Playwright E2E tests with screenshots
+│   ├── DataTransfer.Benchmarks/        # Performance benchmarks
+│   └── DataTransfer.Iceberg.ManualTest/ # Manual Iceberg testing
 ├── config/
 │   ├── appsettings.json                # Your configuration (create from template)
 │   ├── appsettings.template.json       # Clean configuration template
 │   └── appsettings.EXAMPLE.json        # Annotated configuration example
+├── docs/
+│   ├── ICEBERG_QUICKSTART.md           # Iceberg integration guide
+│   ├── SCHEMA_DISCOVERY_TEST_GUIDE.md  # Schema discovery documentation
+│   └── iceberg-validation-guide.md     # Iceberg validation procedures
 ├── scripts/
 │   └── validate-setup.sh               # Environment validation script
 ├── docker/
@@ -413,24 +436,41 @@ DataTransfer/
 
 ## Testing
 
-The solution includes comprehensive test coverage:
+The solution includes comprehensive test coverage across all layers:
 
-- **131+ total tests passing**
-- **Unit tests**: 106 tests with mocked dependencies across 5 layers
-- **Integration tests**: 5 E2E tests with real SQL Server (Testcontainers)
-- **Web UI tests**: 20+ Playwright E2E tests with visual screenshot documentation
-- **Test execution time**: ~19 seconds for unit/integration, ~25 seconds for Playwright
+- **Unit tests**: Mocked dependencies across Core, Configuration, SqlServer, Parquet, Iceberg, Pipeline, Console, and Web layers
+- **Integration tests**: E2E tests with real SQL Server (Testcontainers)
+- **Web UI tests**: Playwright E2E tests with visual screenshot documentation
+- **Performance benchmarks**: Large dataset handling benchmarks
+- **Manual tests**: Iceberg integration validation
 - **Code coverage target**: 80%+ (enforced via coverlet)
 
-### Test Categories
+### Test Projects
+
+- **DataTransfer.Core.Tests** - Domain models, partition strategies, interfaces
+- **DataTransfer.Configuration.Tests** - Configuration parsing and validation
+- **DataTransfer.SqlServer.Tests** - SQL extraction, loading, query builders
+- **DataTransfer.Parquet.Tests** - Parquet read/write operations
+- **DataTransfer.Iceberg.Tests** - Iceberg table format operations
+- **DataTransfer.Pipeline.Tests** - Orchestration and profile management
+- **DataTransfer.Console.Tests** - CLI argument parsing and execution
+- **DataTransfer.Integration.Tests** - Full pipeline E2E validation
+- **DataTransfer.Web.Tests** - Blazor UI interaction testing
+- **DataTransfer.Benchmarks** - Performance testing and metrics
+- **DataTransfer.Iceberg.ManualTest** - Manual validation scenarios
+
+### Test Coverage
 
 - All 4 partition strategies (Date, IntDate, SCD2, Static)
+- Iceberg incremental sync with watermark tracking
 - Empty table edge cases
 - Error scenarios and recovery
 - Full Extract → Parquet → Load pipeline validation
+- Full Extract → Iceberg → Load pipeline validation
 - Data integrity verification
 - Web UI interaction testing with automated screenshots
-- Complete workflow demonstrations (SQL→Parquet→SQL round-trip)
+- Complete workflow demonstrations (SQL→Parquet→SQL, SQL→Iceberg→SQL round-trips)
+- Profile save/load/execution workflows
 
 ## Performance Characteristics
 
