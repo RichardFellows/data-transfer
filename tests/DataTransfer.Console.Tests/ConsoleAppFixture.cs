@@ -18,9 +18,22 @@ public class ConsoleAppFixture : IAsyncLifetime
     public string BinaryPath { get; private set; } = string.Empty;
 
     /// <summary>
-    /// Working directory for test execution
+    /// Working directory for test execution (solution root)
     /// </summary>
-    public string WorkingDirectory { get; } = "/home/richard/sonnet45";
+    public string WorkingDirectory { get; }
+
+    public ConsoleAppFixture()
+    {
+        // Find solution root by looking for .sln file
+        var current = Directory.GetCurrentDirectory();
+        while (current != null && !Directory.GetFiles(current, "*.sln").Any())
+        {
+            current = Directory.GetParent(current)?.FullName;
+        }
+
+        WorkingDirectory = current ?? Directory.GetCurrentDirectory();
+        System.Console.WriteLine($"Solution root: {WorkingDirectory}");
+    }
 
     public async Task InitializeAsync()
     {
