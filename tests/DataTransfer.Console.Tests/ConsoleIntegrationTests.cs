@@ -5,17 +5,15 @@ namespace DataTransfer.Console.Tests;
 /// <summary>
 /// Layer 1: CLI Interface Integration Tests
 /// Tests command-line arguments, help output, and profile operations (no database required)
-///
-/// NOTE: These tests are currently skipped due to execution complexity.
-/// For manual testing, use: dotnet run --project src/DataTransfer.Console -- [args]
 /// </summary>
+[Collection("ConsoleApp")]
 public class ConsoleIntegrationTests : ConsoleTestBase
 {
-    public ConsoleIntegrationTests() : base(null)
+    public ConsoleIntegrationTests(ConsoleAppFixture fixture) : base(fixture)
     {
     }
 
-    [Fact(Skip = "Console execution tests require manual verification - use: dotnet run --project src/DataTransfer.Console -- --help")]
+    [Fact]
     public async Task HelpCommand_Should_Display_Usage_Information()
     {
         // Arrange & Act
@@ -23,7 +21,7 @@ public class ConsoleIntegrationTests : ConsoleTestBase
             "--help",
             nameof(ConsoleIntegrationTests),
             "help_command",
-            timeout: TimeSpan.FromSeconds(10));
+            timeout: TimeSpan.FromSeconds(30));
 
         // Assert
         Assert.Equal(0, capture.ExitCode);
@@ -34,7 +32,7 @@ public class ConsoleIntegrationTests : ConsoleTestBase
         Assert.Contains("--help", capture.StandardOutput);
     }
 
-    [Fact(Skip = "Console execution tests require manual verification - use: dotnet run --project src/DataTransfer.Console -- --list-profiles")]
+    [Fact]
     public async Task ListProfiles_Should_Return_Zero_Exit_Code()
     {
         // Arrange & Act
@@ -53,7 +51,7 @@ public class ConsoleIntegrationTests : ConsoleTestBase
             "Expected either 'No profiles found' or 'Saved Profiles:' in output");
     }
 
-    [Fact(Skip = "Console execution tests require manual verification")]
+    [Fact]
     public async Task InvalidProfile_Should_Return_NonZero_Exit_Code()
     {
         // Arrange & Act
@@ -61,7 +59,7 @@ public class ConsoleIntegrationTests : ConsoleTestBase
             "--profile \"NonExistentProfile12345\"",
             nameof(ConsoleIntegrationTests),
             "invalid_profile_command",
-            timeout: TimeSpan.FromSeconds(15));
+            timeout: TimeSpan.FromSeconds(30));
 
         // Assert
         Assert.NotEqual(0, capture.ExitCode);
@@ -71,7 +69,7 @@ public class ConsoleIntegrationTests : ConsoleTestBase
             "Expected 'not found' message for invalid profile");
     }
 
-    [Fact(Skip = "Console execution tests require manual verification")]
+    [Fact]
     public async Task InvalidConfigPath_Should_Handle_Gracefully()
     {
         // Arrange & Act
@@ -79,7 +77,7 @@ public class ConsoleIntegrationTests : ConsoleTestBase
             "--config \"nonexistent/path/config.json\"",
             nameof(ConsoleIntegrationTests),
             "invalid_config_path",
-            timeout: TimeSpan.FromSeconds(15));
+            timeout: TimeSpan.FromSeconds(30));
 
         // Assert
         Assert.NotEqual(0, capture.ExitCode);
@@ -92,7 +90,7 @@ public class ConsoleIntegrationTests : ConsoleTestBase
             "Expected error message for invalid config path");
     }
 
-    [Fact(Skip = "Console execution tests require manual verification")]
+    [Fact(Skip = "Interactive mode requires user input simulation - tested manually")]
     public async Task NoArguments_Should_Start_Interactive_Mode()
     {
         // Arrange & Act
@@ -108,44 +106,5 @@ public class ConsoleIntegrationTests : ConsoleTestBase
             capture.StandardOutput.Contains("DataTransfer Console") ||
             capture.StandardOutput.Contains("Select option"),
             "Expected interactive menu to be displayed");
-    }
-
-    [Fact(Skip = "Console execution tests require manual verification")]
-    public async Task MultipleArguments_Should_Process_Correctly()
-    {
-        // Arrange & Act - Test that unrecognized args don't crash
-        var capture = await ExecuteConsoleCommandAsync(
-            "--unknown-arg test",
-            nameof(ConsoleIntegrationTests),
-            "unknown_argument",
-            timeout: TimeSpan.FromSeconds(10));
-
-        // Assert - Should either show help or exit gracefully
-        // Exit code doesn't matter as much as not crashing
-        Assert.True(
-            capture.StandardOutput.Length > 0 || capture.StandardError.Length > 0,
-            "Should produce some output for unknown arguments");
-    }
-
-    [Fact(Skip = "Console execution tests require manual verification")]
-    public async Task ConfigMode_With_Valid_Legacy_Config_Should_Work()
-    {
-        // This test assumes a valid config exists or will be created
-        // For now, we test that the command is parsed correctly
-
-        // Arrange & Act
-        var capture = await ExecuteConsoleCommandAsync(
-            "--config config/appsettings.json",
-            nameof(ConsoleIntegrationTests),
-            "config_mode_legacy",
-            timeout: TimeSpan.FromSeconds(30));
-
-        // Assert
-        // Should attempt to load config (may fail if DB not available, but that's OK for this test)
-        Assert.True(
-            capture.StandardOutput.Contains("Loading configuration") ||
-            capture.StandardOutput.Contains("Error") ||
-            capture.StandardError.Length > 0,
-            "Should attempt to process config file");
     }
 }

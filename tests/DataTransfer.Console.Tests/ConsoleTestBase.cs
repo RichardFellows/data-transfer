@@ -63,9 +63,11 @@ public abstract class ConsoleTestBase : IAsyncLifetime
         else
         {
             // Fall back to dotnet run (slow path, for backward compatibility)
+            // Find solution root
+            var workingDir = FindSolutionRoot();
             command = Cli.Wrap("dotnet")
                 .WithArguments($"run --project {ProjectPath} -- {arguments}")
-                .WithWorkingDirectory("/home/richard/sonnet45");
+                .WithWorkingDirectory(workingDir);
             commandDisplay = $"dotnet run --project {ProjectPath} -- {arguments}";
         }
 
@@ -169,9 +171,11 @@ public abstract class ConsoleTestBase : IAsyncLifetime
         else
         {
             // Fall back to dotnet run (slow path)
+            // Find solution root
+            var workingDir = FindSolutionRoot();
             command = Cli.Wrap("dotnet")
                 .WithArguments($"run --project {ProjectPath}")
-                .WithWorkingDirectory("/home/richard/sonnet45");
+                .WithWorkingDirectory(workingDir);
             commandDisplay = $"dotnet run --project {ProjectPath} (interactive)";
         }
 
@@ -207,5 +211,18 @@ public abstract class ConsoleTestBase : IAsyncLifetime
         }
 
         return capture;
+    }
+
+    /// <summary>
+    /// Finds the solution root directory by looking for .sln file
+    /// </summary>
+    private static string FindSolutionRoot()
+    {
+        var current = Directory.GetCurrentDirectory();
+        while (current != null && !Directory.GetFiles(current, "*.sln").Any())
+        {
+            current = Directory.GetParent(current)?.FullName;
+        }
+        return current ?? Directory.GetCurrentDirectory();
     }
 }
