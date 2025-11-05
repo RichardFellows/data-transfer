@@ -63,9 +63,10 @@ public abstract class ConsoleTestBase : IAsyncLifetime
         else
         {
             // Fall back to dotnet run (slow path, for backward compatibility)
+            var workingDir = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "../../../.."));
             command = Cli.Wrap("dotnet")
                 .WithArguments($"run --project {ProjectPath} -- {arguments}")
-                .WithWorkingDirectory("/home/richard/sonnet45");
+                .WithWorkingDirectory(workingDir);
             commandDisplay = $"dotnet run --project {ProjectPath} -- {arguments}";
         }
 
@@ -169,9 +170,10 @@ public abstract class ConsoleTestBase : IAsyncLifetime
         else
         {
             // Fall back to dotnet run (slow path)
+            var workingDir = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "../../../.."));
             command = Cli.Wrap("dotnet")
                 .WithArguments($"run --project {ProjectPath}")
-                .WithWorkingDirectory("/home/richard/sonnet45");
+                .WithWorkingDirectory(workingDir);
             commandDisplay = $"dotnet run --project {ProjectPath} (interactive)";
         }
 
